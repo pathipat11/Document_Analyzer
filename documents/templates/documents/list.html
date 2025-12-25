@@ -1,0 +1,31 @@
+{% extends "documents/base.html" %}
+{% block content %}
+<h1>Documents</h1>
+
+<p><a href="{% url 'documents:upload' %}">+ Upload new</a></p>
+
+{% if docs %}
+<table border="1" cellpadding="8" cellspacing="0" style="width:100%; border-collapse: collapse;">
+    <thead>
+        <tr>
+            <th align="left">File name</th>
+            <th align="left">Type</th>
+            <th align="left">Uploaded</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for d in docs %}
+        <tr>
+            <td>
+                <a href="{% url 'documents:detail' d.pk %}">{{ d.file_name }}</a>
+            </td>
+            <td>{{ d.document_type }}</td>
+            <td>{{ d.uploaded_at }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No documents yet.</p>
+{% endif %}
+{% endblock %}

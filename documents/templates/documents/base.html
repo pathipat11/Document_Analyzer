@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>Document Analyzer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+</head>
+
+<body style="font-family: system-ui; max-width: 980px; margin: 24px auto; padding: 0 16px;">
+    <nav style="display:flex; gap:12px; align-items:center; margin-bottom: 16px;">
+        <a href="{% url 'documents:list' %}">Documents</a>
+        <a href="{% url 'documents:upload' %}">Upload</a>
+    </nav>
+
+    {% if messages %}
+    <ul>
+        {% for message in messages %}
+        <li>{{ message }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% block content %}{% endblock %}
+</body>
+
+</html>

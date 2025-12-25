@@ -1,0 +1,33 @@
+{% extends "documents/base.html" %}
+{% block content %}
+<h1>Document Detail</h1>
+
+<p><b>File:</b> {{ doc.file_name }}</p>
+<p><b>Ext:</b> {{ doc.file_ext }}</p>
+<p><b>MIME:</b> {{ doc.mime_type }}</p>
+<p><b>Uploaded:</b> {{ doc.uploaded_at }}</p>
+
+<hr />
+
+<p><b>Word count:</b> {{ doc.word_count }}</p>
+<p><b>Char count:</b> {{ doc.char_count }}</p>
+
+<p><b>Summary:</b></p>
+<div style="background:#f6f6f6; padding:12px; border-radius:8px;">
+    {{ doc.summary|default:"(summary not available)" }}
+</div>
+
+<p><b>Preview:</b></p>
+<pre style="white-space: pre-wrap; background:#f6f6f6; padding:12px; border-radius:8px;">
+{{ doc.extracted_text|truncatechars:1200|default:"(not extracted yet)" }}
+</pre>
+
+<p>
+    <a href="{% url 'documents:reprocess' doc.pk %}">Reprocess (extract + summary)</a>
+</p>
+
+
+<p style="margin-top:16px;">
+    <a href="{{ doc.file.url }}">Download file</a>
+</p>
+{% endblock %}

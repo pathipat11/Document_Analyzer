@@ -4,5 +4,11 @@ from . import views
 app_name = "documents"
 
 urlpatterns = [
-    path("", views.health, name="health"),
+    path("health/", views.health, name="health"),
+
+    path("", views.document_list, name="list"),
+    path("upload/", views.upload_document, name="upload"),
+    path("documents/<int:pk>/", views.document_detail, name="detail"),
+    path("documents/<int:pk>/reprocess/", views.reprocess_document, name="reprocess"),
+
 ]

@@ -120,10 +120,20 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
-
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 # (optional) ค่าพื้นฐานสำหรับ validation
 MAX_UPLOAD_SIZE = int(os.getenv("MAX_UPLOAD_SIZE", "5242880"))  # 5MB
-ALLOWED_EXTENSIONS = set(os.getenv("ALLOWED_EXTENSIONS", "txt,csv,pdf").split(","))
+ALLOWED_EXTENSIONS = set(os.getenv("ALLOWED_EXTENSIONS", "txt,csv,pdf,docx").split(","))
+
+OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
+ENABLE_LLM = os.getenv("ENABLE_LLM", "1") == "1"
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {"console": {"class": "logging.StreamHandler"}},
+    "root": {"handlers": ["console"], "level": "INFO"},
+}

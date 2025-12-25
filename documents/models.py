@@ -15,6 +15,5 @@ class Document(models.Model):
     document_type = models.CharField(max_length=50, default="other")
 
     uploaded_at = models.DateTimeField(auto_now_add=True)
-
     def __str__(self):
         return self.file_name
