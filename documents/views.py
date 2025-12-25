@@ -1,7 +1,9 @@
+import csv
 from pathlib import Path
 from django.shortcuts import render, redirect, get_object_or_404
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.utils import timezone
+from django.db.models import Q
 
 from .forms import DocumentUploadForm
 from .services.processor import process_document
@@ -40,10 +42,48 @@ def document_detail(request, pk: int):
     return render(request, "documents/detail.html", {"doc": doc})
 
 def document_list(request):
+    dtype = (request.GET.get("type") or "").strip().lower()
+
     docs = Document.objects.order_by("-uploaded_at")
-    return render(request, "documents/list.html", {"docs": docs})
+    if dtype:
+        docs = docs.filter(document_type=dtype)
+
+    # ส่ง choices ไป template
+    type_choices = ["invoice", "announcement", "policy", "other"]
+
+    return render(request, "documents/list.html", {
+        "docs": docs,
+        "dtype": dtype,
+        "type_choices": type_choices,
+    })
 
 def reprocess_document(request, pk: int):
     doc = get_object_or_404(Document, pk=pk)
     process_document(doc)
     return redirect("documents:detail", pk=doc.pk)
+
+def export_documents_csv(request):
+    dtype = (request.GET.get("type") or "").strip().lower()
+    docs = Document.objects.order_by("-uploaded_at")
+    if dtype:
+        docs = docs.filter(document_type=dtype)
+
+    resp = HttpResponse(content_type="text/csv")
+    filename = "documents.csv" if not dtype else f"documents_{dtype}.csv"
+    resp["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+    writer = csv.writer(resp)
+    writer.writerow(["id", "file_name", "document_type", "word_count", "char_count", "summary", "uploaded_at"])
+
+    for d in docs:
+        writer.writerow([
+            d.id,
+            d.file_name,
+            d.document_type,
+            d.word_count,
+            d.char_count,
+            (d.summary or "").replace("\n", " ").strip(),
+            d.uploaded_at.isoformat(),
+        ])
+
+    return resp
