@@ -128,6 +128,8 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 # (optional) ค่าพื้นฐานสำหรับ validation
 MAX_UPLOAD_SIZE = int(os.getenv("MAX_UPLOAD_SIZE", "5242880"))  # 5MB
+MAX_FILES_PER_UPLOAD = int(os.getenv("MAX_FILES_PER_UPLOAD", "5"))
+MAX_TOTAL_UPLOAD_SIZE = int(os.getenv("MAX_TOTAL_UPLOAD_SIZE", "20971520"))  # 20MB
 ALLOWED_EXTENSIONS = set(os.getenv("ALLOWED_EXTENSIONS", "txt,csv,pdf,docx").split(","))
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")

@@ -1,12 +1,13 @@
 import csv
 from pathlib import Path
 from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpResponse
 from django.utils import timezone
 from django.db.models import Q
 
-from .forms import DocumentUploadForm
+from .services.upload_validation import validate_files, get_limits
 from .services.processor import process_document
 from .models import Document
 
@@ -15,13 +16,20 @@ def health(request):
 
 @login_required
 def upload_document(request):
-    if request.method == "POST":
-        form = DocumentUploadForm(request.POST, request.FILES)
-        if form.is_valid():
-            f = form.cleaned_data["file"]
+    limits = get_limits()
 
+    if request.method == "POST":
+        files = request.FILES.getlist("files")
+
+        try:
+            validate_files(files)
+        except ValueError as e:
+            messages.error(request, str(e))
+            return render(request, "documents/upload.html", {"limits": limits})
+
+        created = []
+        for f in files:
             ext = Path(f.name).suffix.lower().lstrip(".")
-            # content_type อาจว่างสำหรับบางไฟล์/บาง browser ได้
             mime = getattr(f, "content_type", "") or ""
 
             doc = Document.objects.create(
@@ -30,15 +38,14 @@ def upload_document(request):
                 file_name=f.name,
                 file_ext=ext,
                 mime_type=mime,
-                uploaded_at=timezone.now(),
             )
-
             process_document(doc)
-            return redirect("documents:detail", pk=doc.pk)
-    else:
-        form = DocumentUploadForm()
+            created.append(doc)
 
-    return render(request, "documents/upload.html", {"form": form})
+        messages.success(request, f"Uploaded and processed {len(created)} file(s).")
+        return redirect("documents:list")
+
+    return render(request, "documents/upload.html", {"limits": limits})
 
 @login_required
 def document_detail(request, pk: int):
