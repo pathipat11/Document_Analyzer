@@ -2,114 +2,173 @@
 {% block title %}Documents · Document Analyzer{% endblock %}
 
 {% block content %}
-<div class="flex flex-wrap items-end justify-between gap-4">
-    <div>
-        <h1 class="text-xl font-semibold">Documents</h1>
-        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Upload, classify, summarize — all local.
-        </p>
+<div class="space-y-5">
+
+    <!-- Header -->
+    <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+            <h1 class="text-xl font-semibold">Documents</h1>
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Select 2+ documents to create a combined summary.
+            </p>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <div class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm
+                  dark:border-slate-800 dark:bg-slate-900">
+                Selected <span id="selectedCount" class="font-semibold">0</span>
+            </div>
+
+            <button id="combineBtn" class="btn" type="submit" form="combineForm">
+                Combine
+            </button>
+        </div>
     </div>
 
-    <div class="flex flex-col gap-1">
-        <button class="btn" type="submit" form="combineForm">
-            Combine &amp; Summarize
-        </button>
-        <span class="text-xs text-slate-500 dark:text-slate-400">
-            Create a notebook from selected documents
-        </span>
-    </div>
+    <!-- Filter + Export -->
+    <form method="get" class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-2">
+            <label class="text-sm font-medium">Type</label>
+            <select name="type" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm
+                     dark:border-slate-700 dark:bg-slate-900">
+                <option value="">All</option>
+                {% for t in type_choices %}
+                <option value="{{ t }}" {% if dtype == t %}selected{% endif %}>{{ t }}</option>
+                {% endfor %}
+            </select>
+
+            <button class="btn-outline" type="submit">Apply</button>
+            {% if dtype %}
+            <a class="btn-outline" href="{% url 'documents:list' %}">Reset</a>
+            {% endif %}
+        </div>
+
+        <a class="btn-outline" href="{% url 'documents:export_csv' %}{% if dtype %}?type={{ dtype }}{% endif %}">
+            Export CSV
+        </a>
+    </form>
+
+    <!-- Combine form + table -->
+    <form id="combineForm" method="post" action="{% url 'documents:combined_create' %}">
+        {% csrf_token %}
+
+        <div class="card overflow-hidden">
+            {% if docs %}
+            <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3
+                    dark:border-slate-800">
+                <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                    <input id="selectAll" type="checkbox"
+                        class="h-4 w-4 rounded border-slate-300 dark:border-slate-700">
+                    Select all
+                </label>
+
+                <span class="text-xs text-slate-500 dark:text-slate-400">
+                    {{ docs|length }} documents
+                </span>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-50 text-slate-600 dark:bg-slate-950 dark:text-slate-300">
+                        <tr>
+                            <th class="px-4 py-3 text-left font-medium"> </th>
+                            <th class="px-4 py-3 text-left font-medium">File</th>
+                            <th class="px-4 py-3 text-left font-medium">Type</th>
+                            <th class="px-4 py-3 text-left font-medium">Words</th>
+                            <th class="px-4 py-3 text-left font-medium">Uploaded</th>
+                        </tr>
+                    </thead>
+
+                    <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+                        {% for d in docs %}
+                        <tr class="hover:bg-slate-50/70 dark:hover:bg-slate-900/30">
+                            <td class="px-4 py-3">
+                                <input type="checkbox" name="doc_ids" value="{{ d.id }}"
+                                    class="docCheckbox h-4 w-4 rounded border-slate-300 dark:border-slate-700">
+                            </td>
+
+                            <td class="px-4 py-3">
+                                <a class="font-medium text-blue-700 hover:underline dark:text-blue-300"
+                                    href="{% url 'documents:detail' d.pk %}">
+                                    {{ d.file_name }}
+                                </a>
+                                <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                    {{ d.char_count }} chars
+                                </div>
+                            </td>
+
+                            <td class="px-4 py-3">
+                                <span class="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-medium
+                                 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                                    {{ d.document_type }}
+                                </span>
+                            </td>
+
+                            <td class="px-4 py-3">{{ d.word_count }}</td>
+                            <td class="px-4 py-3 text-slate-600 dark:text-slate-300">
+                                {{ d.uploaded_at|date:"Y-m-d H:i" }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div
+                class="border-t border-slate-200 px-4 py-3 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                Tip: combine works best when documents are on the same topic.
+            </div>
+            {% else %}
+            <div class="p-6 text-sm text-slate-500 dark:text-slate-400">
+                No documents yet. Click “Upload” to add one.
+            </div>
+            {% endif %}
+        </div>
+    </form>
 
 </div>
 
-<!-- Filter + Export -->
-<form method="get" class="mt-4 flex flex-wrap items-center gap-2">
-    <label class="text-sm font-medium">Type</label>
-    <select name="type" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm
-                 dark:border-slate-700 dark:bg-slate-900">
-        <option value="">All</option>
-        {% for t in type_choices %}
-        <option value="{{ t }}" {% if dtype == t %}selected{% endif %}>{{ t }}</option>
-        {% endfor %}
-    </select>
-
-    <button class="btn-outline" type="submit">Apply</button>
-
-    {% if dtype %}
-    <a class="btn-outline" href="{% url 'documents:list' %}">Reset</a>
-    {% endif %}
-
-    <a class="btn-outline" href="{% url 'documents:export_csv' %}{% if dtype %}?type={{ dtype }}{% endif %}">
-        Export CSV
-    </a>
-</form>
-
-<!-- ================= Combine Form ================= -->
-<form id="combineForm" method="post" action="{% url 'documents:combined_create' %}">
-    {% csrf_token %}
-
-    <div class="card mt-5 overflow-hidden">
-        {% if docs %}
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-                <thead class="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                    <tr>
-                        <th class="px-4 py-3 text-left font-semibold">Select</th>
-                        <th class="px-4 py-3 text-left font-semibold">File</th>
-                        <th class="px-4 py-3 text-left font-semibold">Type</th>
-                        <th class="px-4 py-3 text-left font-semibold">Words</th>
-                        <th class="px-4 py-3 text-left font-semibold">Uploaded</th>
-                    </tr>
-                </thead>
-
-                <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
-                    {% for d in docs %}
-                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-900">
-                        <td class="px-4 py-3">
-                            <input type="checkbox" name="doc_ids" value="{{ d.id }}" class="h-4 w-4 rounded border-slate-300
-                                dark:border-slate-700">
-                        </td>
-
-                        <td class="px-4 py-3">
-                            <a class="font-medium text-blue-700 hover:underline dark:text-blue-300"
-                                href="{% url 'documents:detail' d.pk %}">
-                                {{ d.file_name }}
-                            </a>
-                        </td>
-
-                        <td class="px-4 py-3">
-                            <span class="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-medium
-                               dark:bg-slate-800">
-                                {{ d.document_type }}
-                            </span>
-                        </td>
-
-                        <td class="px-4 py-3">{{ d.word_count }}</td>
-                        <td class="px-4 py-3">{{ d.uploaded_at }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% else %}
-        <div class="p-6 text-sm text-slate-500 dark:text-slate-400">
-            No documents yet. Click “Upload” to add one.
-        </div>
-        {% endif %}
-    </div>
-</form>
 <script>
-    const checkboxes = document.querySelectorAll('input[name="doc_ids"]');
-    const combineBtn = document.querySelector('button[form="combineForm"]');
+    const checkboxes = Array.from(document.querySelectorAll(".docCheckbox"));
+    const selectAll = document.getElementById("selectAll");
+    const combineBtn = document.getElementById("combineBtn");
+    const selectedCount = document.getElementById("selectedCount");
 
-    function updateCombineState() {
-        const checked = Array.from(checkboxes).filter(cb => cb.checked).length;
-        combineBtn.disabled = checked < 2;
-        combineBtn.classList.toggle("opacity-50", checked < 2);
-        combineBtn.classList.toggle("cursor-not-allowed", checked < 2);
+    function setDisabled(disabled) {
+        combineBtn.disabled = disabled;
+        combineBtn.classList.toggle("opacity-50", disabled);
+        combineBtn.classList.toggle("cursor-not-allowed", disabled);
     }
 
-    checkboxes.forEach(cb => cb.addEventListener("change", updateCombineState));
-    updateCombineState();
-</script>
+    function updateState() {
+        const checked = checkboxes.filter(cb => cb.checked).length;
+        if (selectedCount) selectedCount.textContent = String(checked);
 
+        setDisabled(checked < 2);
+
+        if (selectAll) {
+            if (checked === 0) {
+                selectAll.checked = false;
+                selectAll.indeterminate = false;
+            } else if (checked === checkboxes.length) {
+                selectAll.checked = true;
+                selectAll.indeterminate = false;
+            } else {
+                selectAll.checked = false;
+                selectAll.indeterminate = true;
+            }
+        }
+    }
+
+    if (selectAll) {
+        selectAll.addEventListener("change", () => {
+            const val = selectAll.checked;
+            checkboxes.forEach(cb => cb.checked = val);
+            updateState();
+        });
+    }
+
+    checkboxes.forEach(cb => cb.addEventListener("change", updateState));
+    updateState();
+</script>
 {% endblock %}
