@@ -23,8 +23,8 @@
 
         <div>
             <label class="block text-sm font-medium mb-2">Files</label>
-            <input type="file" name="files" multiple class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2
-                      dark:border-slate-700 dark:bg-slate-900" />
+            <input type="file" name="files" multiple
+                class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900" />
             <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
                 You can select multiple files.
             </p>
@@ -33,6 +33,18 @@
         <div class="flex items-center gap-2">
             <button class="btn" type="submit">Upload</button>
             <a class="btn-outline" href="{% url 'documents:list' %}">Cancel</a>
+        </div>
+        <div class="flex items-center gap-2">
+            <input id="auto_combine" name="auto_combine" type="checkbox" value="1" checked
+                class="h-4 w-4 rounded border-slate-300 dark:border-slate-700">
+            <div class="flex flex-col">
+                <label for="auto_combine" class="text-sm text-slate-700 dark:text-slate-200">
+                    Auto-combine and summarize after upload
+                </label>
+                <p class="text-xs text-slate-500 dark:text-slate-400">
+                    If you upload multiple files, a notebook summary will be created automatically.
+                </p>
+            </div>
         </div>
     </form>
 </div>

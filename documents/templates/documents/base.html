@@ -71,6 +71,8 @@
                 {% if request.user.is_authenticated %}
                 <a class="btn-outline" href="{% url 'documents:list' %}">Documents</a>
                 <a class="btn" href="{% url 'documents:upload' %}">Upload</a>
+                <a class="btn-outline" href="{% url 'documents:combined_list' %}">Combined</a>
+
                 {% endif %}
 
                 <button type="button" class="btn-outline" onclick="toggleTheme()">

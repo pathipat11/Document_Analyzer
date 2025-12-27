@@ -12,4 +12,8 @@ urlpatterns = [
     path("documents/<int:pk>/reprocess/", views.reprocess_document, name="reprocess"),
 
     path("export/csv/", views.export_documents_csv, name="export_csv"),
+
+    path("combined/", views.combined_list, name="combined_list"),
+    path("combined/create/", views.create_combined_summary, name="combined_create"),
+    path("combined/<int:pk>/", views.combined_detail, name="combined_detail"),
 ]

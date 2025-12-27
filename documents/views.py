@@ -8,8 +8,9 @@ from django.utils import timezone
 from django.db.models import Q
 
 from .services.upload_validation import validate_files, get_limits
+from .services.combined_summarizer import build_combined_summary, build_combined_title_and_summary
 from .services.processor import process_document
-from .models import Document
+from .models import Document, CombinedSummary
 
 def health(request):
     return JsonResponse({"status": "ok"})
@@ -20,6 +21,8 @@ def upload_document(request):
 
     if request.method == "POST":
         files = request.FILES.getlist("files")
+        auto_combine = request.POST.get("auto_combine") == "1"
+        title = (request.POST.get("notebook_title") or "").strip()
 
         try:
             validate_files(files)
@@ -27,7 +30,7 @@ def upload_document(request):
             messages.error(request, str(e))
             return render(request, "documents/upload.html", {"limits": limits})
 
-        created = []
+        created: list[Document] = []
         for f in files:
             ext = Path(f.name).suffix.lower().lstrip(".")
             mime = getattr(f, "content_type", "") or ""
@@ -42,10 +45,30 @@ def upload_document(request):
             process_document(doc)
             created.append(doc)
 
+        if auto_combine and len(created) >= 2:
+            ai_title, combined_text = build_combined_title_and_summary(created)
+            final_title = title or ai_title
+
+            cs = CombinedSummary.objects.create(
+                owner=request.user,
+                title=final_title,
+                combined_summary=combined_text,
+                doc_count=len(created),
+                total_words=sum(d.word_count for d in created),
+            )
+
+            cs.documents.set(created)
+
+            messages.success(request, f"Uploaded {len(created)} files and created a combined summary.")
+            return redirect("documents:combined_detail", pk=cs.pk)
+
         messages.success(request, f"Uploaded and processed {len(created)} file(s).")
+        if len(created) == 1:
+            return redirect("documents:detail", pk=created[0].pk)
         return redirect("documents:list")
 
     return render(request, "documents/upload.html", {"limits": limits})
+
 
 @login_required
 def document_detail(request, pk: int):
@@ -100,3 +123,48 @@ def export_documents_csv(request):
         ])
 
     return resp
+
+@login_required
+def create_combined_summary(request):
+    
+    if request.method != "POST":
+        return redirect("documents:list")
+
+    ids = request.POST.getlist("doc_ids")
+    ids = [int(i) for i in ids if i.isdigit()]
+
+    if len(ids) < 2:
+        messages.error(request, "Please select at least 2 documents to combine.")
+        return redirect("documents:list")
+
+    docs = list(Document.objects.filter(owner=request.user, id__in=ids).order_by("-uploaded_at"))
+    if len(docs) < 2:
+        messages.error(request, "Selected documents not found.")
+        return redirect("documents:list")
+
+    title, combined_text = build_combined_title_and_summary(docs)
+
+    cs = CombinedSummary.objects.create(
+        owner=request.user,
+        title=title,
+        combined_summary=combined_text,
+        doc_count=len(docs),
+        total_words=sum(d.word_count for d in docs),
+    )
+    cs.documents.set(docs)
+
+    messages.success(request, "Combined summary created.")
+    return redirect("documents:combined_detail", pk=cs.pk)
+
+
+@login_required
+def combined_detail(request, pk: int):
+    cs = get_object_or_404(CombinedSummary, pk=pk, owner=request.user)
+    docs = cs.documents.all().order_by("-uploaded_at")
+    return render(request, "documents/combined_detail.html", {"cs": cs, "docs": docs})
+
+
+@login_required
+def combined_list(request):
+    items = CombinedSummary.objects.filter(owner=request.user).order_by("-created_at")
+    return render(request, "documents/combined_list.html", {"items": items})
