@@ -1,7 +1,8 @@
 from __future__ import annotations
 from .llm_client import generate_text, LLMError
 
-DOC_TYPES = {"invoice", "announcement", "policy", "other"}
+LABELS = ["invoice","announcement","policy","proposal","report","research","resume","other"]
+DOC_TYPES = set(LABELS)
 
 def classify_text(text: str) -> str:
     clean = (text or "").strip()
@@ -12,16 +13,16 @@ def classify_text(text: str) -> str:
 
     system = "You are a strict document classifier."
     user = f"""
-Classify this document into one of these labels:
-invoice, announcement, policy, other
+    Classify this document into one of these labels:
+    {", ".join(LABELS)}
 
-Rules:
-- Reply with ONE WORD ONLY (exactly one of the labels).
-- No extra text.
+    Rules:
+    - Reply with ONE WORD ONLY (exactly one of the labels).
+    - No extra text.
 
-DOCUMENT:
-{clean}
-"""
+    DOCUMENT:
+    {clean}
+    """
 
     try:
         out = generate_text(system, user).lower().strip()

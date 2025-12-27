@@ -1,48 +1,73 @@
 {% extends "documents/base.html" %}
+{% block title %}Documents · Document Analyzer{% endblock %}
+
 {% block content %}
-<h1>Documents</h1>
+<div class="flex items-end justify-between gap-4">
+    <div>
+        <h1 class="text-xl font-semibold">Documents</h1>
+        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Upload, classify, summarize — all local.
+        </p>
+    </div>
 
-<div style="display:flex; gap:12px; align-items:center; margin: 12px 0;">
-    <a href="{% url 'documents:upload' %}">+ Upload new</a>
-
-    <form method="get" style="margin-left:auto; display:flex; gap:8px; align-items:center;">
-        <label for="type"><b>Filter type:</b></label>
-        <select name="type" id="type">
+    <form method="get" class="flex items-center gap-2">
+        <label class="text-sm font-medium">Type</label>
+        <select name="type" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
             <option value="">All</option>
             {% for t in type_choices %}
             <option value="{{ t }}" {% if dtype == t %}selected{% endif %}>{{ t }}</option>
             {% endfor %}
         </select>
-        <button type="submit">Apply</button>
+
+        <button class="btn-outline" type="submit">Apply</button>
         {% if dtype %}
-        <a href="{% url 'documents:list' %}">Reset</a>
+        <a class="btn-outline" href="{% url 'documents:list' %}">Reset</a>
         {% endif %}
-        <a href="{% url 'documents:export_csv' %}{% if dtype %}?type={{ dtype }}{% endif %}">Export CSV</a>
+
+        <a class="btn-outline" href="{% url 'documents:export_csv' %}{% if dtype %}?type={{ dtype }}{% endif %}">
+            Export CSV
+        </a>
     </form>
 </div>
 
-{% if docs %}
-<table border="1" cellpadding="8" cellspacing="0" style="width:100%; border-collapse: collapse;">
-    <thead>
-        <tr>
-            <th align="left">File name</th>
-            <th align="left">Type</th>
-            <th align="left">Words</th>
-            <th align="left">Uploaded</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for d in docs %}
-        <tr>
-            <td><a href="{% url 'documents:detail' d.pk %}">{{ d.file_name }}</a></td>
-            <td>{{ d.document_type }}</td>
-            <td>{{ d.word_count }}</td>
-            <td>{{ d.uploaded_at }}</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-{% else %}
-<p>No documents yet.</p>
-{% endif %}
+<div class="card mt-5 overflow-hidden">
+    {% if docs %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                <tr>
+                    <th class="px-4 py-3 text-left font-semibold">File</th>
+                    <th class="px-4 py-3 text-left font-semibold">Type</th>
+                    <th class="px-4 py-3 text-left font-semibold">Words</th>
+                    <th class="px-4 py-3 text-left font-semibold">Uploaded</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+                {% for d in docs %}
+                <tr class="hover:bg-slate-50 dark:hover:bg-slate-900">
+                    <td class="px-4 py-3">
+                        <a class="font-medium text-blue-700 hover:underline dark:text-blue-300"
+                            href="{% url 'documents:detail' d.pk %}">
+                            {{ d.file_name }}
+                        </a>
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-medium
+                               dark:bg-slate-800">
+                            {{ d.document_type }}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3">{{ d.word_count }}</td>
+                    <td class="px-4 py-3">{{ d.uploaded_at }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="p-6 text-sm text-slate-500 dark:text-slate-400">
+        No documents yet. Click “Upload” to add one.
+    </div>
+    {% endif %}
+</div>
 {% endblock %}

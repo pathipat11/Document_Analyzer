@@ -48,8 +48,7 @@ def document_list(request):
     if dtype:
         docs = docs.filter(document_type=dtype)
 
-    # ส่ง choices ไป template
-    type_choices = ["invoice", "announcement", "policy", "other"]
+    type_choices = ["invoice","announcement","policy","proposal","report","research","resume","other"]
 
     return render(request, "documents/list.html", {
         "docs": docs,

@@ -1,23 +1,31 @@
 {% extends "documents/base.html" %}
+{% block title %}Upload · Document Analyzer{% endblock %}
+
 {% block content %}
-<h1>Upload Document</h1>
+<div class="card p-6">
+    <h1 class="text-xl font-semibold">Upload Document</h1>
+    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        Supported: .txt .csv .pdf .docx (max 5MB)
+    </p>
 
-<form method="post" enctype="multipart/form-data" style="margin-top: 12px;">
-    {% csrf_token %}
-    <div>
-        {{ form.file.label_tag }}
-        {{ form.file }}
-        {% if form.file.errors %}
-        <div style="color: #b00020; margin-top: 6px;">
-            {{ form.file.errors }}
+    <form method="post" enctype="multipart/form-data" class="mt-5 space-y-4">
+        {% csrf_token %}
+
+        <div>
+            <label class="block text-sm font-medium mb-2">File</label>
+            <input type="file" name="file" class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2
+                      dark:border-slate-700 dark:bg-slate-900" />
+            {% if form.file.errors %}
+            <div class="mt-2 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+                {{ form.file.errors }}
+            </div>
+            {% endif %}
         </div>
-        {% endif %}
-    </div>
 
-    <button type="submit" style="margin-top: 12px;">Upload</button>
-</form>
-
-<p style="margin-top: 10px; opacity: 0.8;">
-    Allowed: {{ request.settings.ALLOWED_EXTENSIONS|default:"txt,csv,pdf,docx" }}
-</p>
+        <div class="flex items-center gap-2">
+            <button class="btn" type="submit">Upload</button>
+            <a class="btn-outline" href="{% url 'documents:list' %}">Cancel</a>
+        </div>
+    </form>
+</div>
 {% endblock %}

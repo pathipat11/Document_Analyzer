@@ -1,0 +1,26 @@
+{
+  "name": "document_analyzer",
+  "version": "1.0.0",
+  "description": "A local Django web app that ingests documents, extracts text, generates metadata (word/char counts), optionally classifies document type, and produces a short summary using a local LLM (Ollama). Data is stored in PostgreSQL and files are stored in local media storage.",
+  "main": "index.js",
+  "scripts": {
+    "build:css": "tailwindcss -c ./tailwind.config.js -i ./static/src/input.css -o ./static/css/tailwind.css --minify",
+    "watch:css": "tailwindcss -c ./tailwind.config.js -i ./static/src/input.css -o ./static/css/tailwind.css --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pathipat11/Document_Analyzer.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/pathipat11/Document_Analyzer/issues"
+  },
+  "homepage": "https://github.com/pathipat11/Document_Analyzer#readme",
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.1.18",
+    "tailwindcss": "^4.1.18"
+  }
+}
