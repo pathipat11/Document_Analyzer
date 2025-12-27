@@ -1,6 +1,7 @@
 import csv
 from pathlib import Path
 from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpResponse
 from django.utils import timezone
 from django.db.models import Q
@@ -12,6 +13,7 @@ from .models import Document
 def health(request):
     return JsonResponse({"status": "ok"})
 
+@login_required
 def upload_document(request):
     if request.method == "POST":
         form = DocumentUploadForm(request.POST, request.FILES)
@@ -23,11 +25,12 @@ def upload_document(request):
             mime = getattr(f, "content_type", "") or ""
 
             doc = Document.objects.create(
-                file=f,                 # Django จะ save ลง MEDIA_ROOT/upload_to
+                owner=request.user,
+                file=f,
                 file_name=f.name,
                 file_ext=ext,
                 mime_type=mime,
-                uploaded_at=timezone.now(),  # optional (auto_now_add ก็ทำอยู่แล้ว)
+                uploaded_at=timezone.now(),
             )
 
             process_document(doc)
@@ -37,14 +40,16 @@ def upload_document(request):
 
     return render(request, "documents/upload.html", {"form": form})
 
+@login_required
 def document_detail(request, pk: int):
-    doc = get_object_or_404(Document, pk=pk)
+    doc = get_object_or_404(Document, pk=pk, owner=request.user)
     return render(request, "documents/detail.html", {"doc": doc})
 
+@login_required
 def document_list(request):
     dtype = (request.GET.get("type") or "").strip().lower()
 
-    docs = Document.objects.order_by("-uploaded_at")
+    docs = Document.objects.filter(owner=request.user).order_by("-uploaded_at")
     if dtype:
         docs = docs.filter(document_type=dtype)
 
@@ -56,14 +61,16 @@ def document_list(request):
         "type_choices": type_choices,
     })
 
+@login_required
 def reprocess_document(request, pk: int):
-    doc = get_object_or_404(Document, pk=pk)
+    doc = get_object_or_404(Document, pk=pk, owner=request.user)
     process_document(doc)
     return redirect("documents:detail", pk=doc.pk)
 
+@login_required
 def export_documents_csv(request):
     dtype = (request.GET.get("type") or "").strip().lower()
-    docs = Document.objects.order_by("-uploaded_at")
+    docs = Document.objects.filter(owner=request.user).order_by("-uploaded_at")
     if dtype:
         docs = docs.filter(document_type=dtype)
 

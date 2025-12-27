@@ -6,8 +6,24 @@
     <title>{% block title %}Document Analyzer{% endblock %}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="stylesheet" href="/static/css/tailwind.css">
+    <style>
+        @keyframes slide-in {
+            from {
+                opacity: 0;
+                transform: translateY(-8px) scale(0.98);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .animate-slide-in {
+            animation: slide-in 0.25s ease-out;
+        }
+    </style>
     <script>
-        // theme init (ก่อน render)
         (function () {
             const saved = localStorage.getItem("theme");
             const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -17,7 +33,6 @@
         function toggleTheme() {
             const isDark = document.documentElement.classList.toggle("dark");
             localStorage.setItem("theme", isDark ? "dark" : "light");
-            // update label
             const el = document.getElementById("themeLabel");
             if (el) el.textContent = isDark ? "Dark" : "Light";
         }
@@ -25,6 +40,18 @@
             const isDark = document.documentElement.classList.contains("dark");
             const el = document.getElementById("themeLabel");
             if (el) el.textContent = isDark ? "Dark" : "Light";
+        });
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const toasts = document.querySelectorAll(".toast");
+            toasts.forEach((toast, idx) => {
+                setTimeout(() => {
+                    toast.style.transition = "opacity 0.4s ease, transform 0.4s ease";
+                    toast.style.opacity = "0";
+                    toast.style.transform = "translateY(-6px) scale(0.98)";
+                    setTimeout(() => toast.remove(), 400);
+                }, 3000 + idx * 200); // ถ้ามีหลาย toast จะไล่หายทีละอัน
+            });
         });
     </script>
 </head>
@@ -41,15 +68,55 @@
             </div>
 
             <div class="flex items-center gap-2">
+                {% if request.user.is_authenticated %}
                 <a class="btn-outline" href="{% url 'documents:list' %}">Documents</a>
                 <a class="btn" href="{% url 'documents:upload' %}">Upload</a>
+                {% endif %}
 
                 <button type="button" class="btn-outline" onclick="toggleTheme()">
                     Theme: <span id="themeLabel" class="ml-2 font-semibold">—</span>
                 </button>
+
+                {% if request.user.is_authenticated %}
+                <span class="text-sm text-slate-500 dark:text-slate-400">
+                    {{ request.user.username }}
+                </span>
+
+                <form method="post" action="{% url 'accounts:logout' %}" class="inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-outline">Logout</button>
+                </form>
+                {% else %}
+                <a class="btn-outline" href="{% url 'accounts:login' %}">Login</a>
+                {% endif %}
             </div>
         </div>
     </header>
+    {% if messages %}
+    <div id="toast-container" class="fixed right-4 top-4 z-50 flex flex-col gap-3">
+        {% for message in messages %}
+        <div class="
+            toast animate-slide-in rounded-xl border p-3 text-sm
+            {% if 'success' in message.tags %}
+                border-green-200 bg-green-50 text-green-800
+                dark:border-green-800 dark:bg-green-950 dark:text-green-200
+            {% elif 'error' in message.tags %}
+                border-red-200 bg-red-50 text-red-800
+                dark:border-red-800 dark:bg-red-950 dark:text-red-200
+            {% elif 'warning' in message.tags %}
+                border-amber-200 bg-amber-50 text-amber-800
+                dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200
+            {% else %}
+                border-blue-200 bg-blue-50 text-blue-800
+                dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200
+            {% endif %}
+            ">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
 
     <main class="mx-auto max-w-5xl px-4 py-6">
         {% block content %}{% endblock %}
