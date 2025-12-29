@@ -4,28 +4,31 @@
 {% block content %}
 <div class="mx-auto max-w-md card p-6">
     <h1 class="text-xl font-semibold">Register</h1>
-    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Create an account.</p>
+    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        Create an account to manage your documents.
+    </p>
 
     <form method="post" class="mt-5 space-y-4">
         {% csrf_token %}
 
         <div>
             <label class="block text-sm font-medium mb-1">Username</label>
-            {{ form.username }}
+            <input type="text" name="username" required class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900" />
         </div>
 
         <div>
             <label class="block text-sm font-medium mb-1">Password</label>
-            {{ form.password1 }}
+            <input type="password" name="password1" required class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900" />
         </div>
 
         <div>
             <label class="block text-sm font-medium mb-1">Confirm password</label>
-            {{ form.password2 }}
+            <input type="password" name="password2" required class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900" />
         </div>
 
         {% if form.errors %}
-        <div class="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+        <div class="rounded-lg bg-red-50 p-3 text-sm text-red-700
+                    dark:bg-red-950 dark:text-red-300">
             {{ form.errors }}
         </div>
         {% endif %}
