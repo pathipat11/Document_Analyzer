@@ -1,0 +1,148 @@
+{% extends "documents/base.html" %}
+{% block title %}Chat · Document Analyzer{% endblock %}
+
+{% block content %}
+<div class="flex flex-wrap items-start justify-between gap-4">
+    <div>
+        <h1 class="text-xl font-semibold">{{ conv.title|default:"Chat" }}</h1>
+        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            {% if conv.document_id %}
+            Context: <span class="font-medium text-slate-700 dark:text-slate-200">{{ conv.document.file_name }}</span>
+            {% else %}
+            Context: <span class="font-medium text-slate-700 dark:text-slate-200">{{ conv.notebook.title }}</span>
+            {% endif %}
+        </p>
+    </div>
+
+    <div class="flex items-center gap-2">
+        {% if conv.document_id %}
+        <a class="btn-outline" href="{% url 'documents:detail' conv.document_id %}">Back to document</a>
+        {% else %}
+        <a class="btn-outline" href="{% url 'documents:combined_detail' conv.notebook_id %}">Back to notebook</a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Chat Container -->
+<div class="mt-5 grid grid-rows-[1fr_auto] overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 shadow-sm dark:border-slate-800 dark:bg-slate-950"
+    style="height: calc(100vh - 220px);">
+
+    <!-- Messages -->
+    <div id="chatScroll" class="min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4 bg-slate-50 dark:bg-slate-950">
+
+        {% for m in chat_messages %}
+        {% if m.role == "user" %}
+        <!-- USER -->
+        <div class="flex justify-end">
+            <div class="max-w-[85%] sm:max-w-[70%]">
+                <div class="flex items-center justify-end gap-2 mb-1">
+                    <span class="text-xs text-slate-400">You</span>
+                </div>
+
+                <div
+                    class="rounded-2xl rounded-tr-sm bg-blue-600 px-4 py-2.5 text-sm leading-relaxed text-white shadow-sm">
+                    {{ m.content|linebreaksbr }}
+                </div>
+
+                <div class="mt-1 text-right text-[11px] text-slate-400">
+                    {{ m.created_at }}
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <!-- ASSISTANT -->
+        <div class="flex justify-start gap-3">
+            <div
+                class="mt-0.5 hidden sm:flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700">
+                AI
+            </div>
+
+            <div class="max-w-[90%] sm:max-w-[75%]">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="text-xs text-slate-400">Assistant</span>
+                </div>
+
+                <div
+                    class="rounded-2xl rounded-tl-sm bg-slate-100 px-4 py-2.5 text-sm leading-relaxed text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-100 dark:ring-1 dark:ring-white/10">
+
+                    {{ m.content|linebreaksbr }}
+                </div>
+
+                <div class="mt-1 text-[11px] text-slate-400">
+                    {{ m.created_at }}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        {% empty %}
+        <div class="grid place-items-center h-full">
+            <div class="text-center">
+                <div class="mx-auto mb-2 h-10 w-10 rounded-2xl bg-slate-100 dark:bg-slate-800"></div>
+                <div class="text-sm font-medium text-slate-700 dark:text-slate-200">Start a conversation</div>
+                <div class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                    Ask a question about your document / notebook.
+                </div>
+                <div class="mt-3 text-xs text-slate-400">
+                    Tip: Enter = send • Shift+Enter = new line
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Input Bar -->
+    <div class="border-t border-slate-200 bg-slate-50/80 p-3 backdrop-blur dark:border-slate-800 dark:bg-slate-950/70">
+        <form id="chatForm" method="post" class="flex items-end gap-2">
+            {% csrf_token %}
+
+            <div class="flex-1">
+                <label class="sr-only" for="chatMessage">Message</label>
+                <textarea id="chatMessage" name="message" rows="1" placeholder="Ask a question…"
+                    class="w-full min-h-11.5 resize-none rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"></textarea>
+                <div class="mt-1 flex items-center justify-between">
+                    <span class="text-[11px] text-slate-400">Enter to send • Shift+Enter for new line</span>
+                </div>
+            </div>
+
+            <button class="btn h-11.5 px-5 self-start" type="submit">Send</button>
+        </form>
+    </div>
+
+</div>
+
+<script>
+    // Auto-scroll to bottom
+    function scrollToBottom() {
+        const el = document.getElementById("chatScroll");
+        if (!el) return;
+        el.scrollTop = el.scrollHeight;
+    }
+    window.addEventListener("load", scrollToBottom);
+
+    // Enter to send, Shift+Enter = newline
+    document.addEventListener("DOMContentLoaded", () => {
+        const ta = document.getElementById("chatMessage");
+        const form = document.getElementById("chatForm");
+        if (!ta || !form) return;
+
+        // auto-grow textarea
+        const autoGrow = () => {
+            ta.style.height = "auto";
+            ta.style.height = Math.min(140, ta.scrollHeight) + "px";
+        };
+        ta.addEventListener("input", autoGrow);
+        autoGrow();
+
+        ta.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                if (ta.value.trim().length === 0) return;
+                form.submit();
+            }
+        });
+
+        // focus input
+        ta.focus();
+    });
+</script>
+{% endblock %}

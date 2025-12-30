@@ -9,8 +9,13 @@
             {{ cs.doc_count }} documents • {{ cs.total_words }} words • {{ cs.created_at }}
         </p>
     </div>
-    <a class="btn-outline" href="{% url 'documents:combined_list' %}">Back</a>
+
+    <div class="flex items-center gap-2">
+        <a class="btn" href="{% url 'documents:chat_notebook' cs.pk %}">Chat</a>
+        <a class="btn-outline" href="{% url 'documents:combined_list' %}">Back</a>
+    </div>
 </div>
+
 
 <div class="grid grid-cols-1 gap-5 lg:grid-cols-3 mt-5">
     <div class="card p-6 lg:col-span-2">

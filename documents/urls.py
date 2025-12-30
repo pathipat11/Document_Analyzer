@@ -16,4 +16,8 @@ urlpatterns = [
     path("combined/", views.combined_list, name="combined_list"),
     path("combined/create/", views.create_combined_summary, name="combined_create"),
     path("combined/<int:pk>/", views.combined_detail, name="combined_detail"),
+    
+    path("chat/document/<int:pk>/", views.chat_document, name="chat_document"),
+    path("chat/notebook/<int:pk>/", views.chat_notebook, name="chat_notebook"),
+    path("chat/<int:conv_id>/", views.chat_view, name="chat_view"),
 ]

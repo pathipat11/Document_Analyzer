@@ -39,6 +39,7 @@
         <div class="mt-5 flex flex-wrap gap-2">
             <a class="btn-outline" href="{{ doc.file.url }}">Download</a>
             <a class="btn-outline" href="{% url 'documents:reprocess' doc.pk %}">Reprocess</a>
+            <a class="btn" href="{% url 'documents:chat_document' doc.pk %}">Chat about this document</a>
         </div>
     </div>
 

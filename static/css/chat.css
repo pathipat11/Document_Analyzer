@@ -1,0 +1,74 @@
+/* Chat scrollbar */
+#chatScroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(100, 116, 139, .45) transparent;
+}
+
+/* firefox */
+.dark #chatScroll {
+    scrollbar-color: rgba(148, 163, 184, .28) transparent;
+}
+
+#chatScroll::-webkit-scrollbar {
+    width: 10px;
+}
+
+#chatScroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#chatScroll::-webkit-scrollbar-thumb {
+    background: rgba(100, 116, 139, .35);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+}
+
+.dark #chatScroll::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, .22);
+}
+
+#chatScroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(100, 116, 139, .55);
+}
+
+.dark #chatScroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, .35);
+}
+
+/* Textarea scrollbar */
+#chatMessage {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(100, 116, 139, .45) transparent;
+}
+
+.dark #chatMessage {
+    scrollbar-color: rgba(148, 163, 184, .28) transparent;
+}
+
+#chatMessage::-webkit-scrollbar {
+    width: 10px;
+}
+
+#chatMessage::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#chatMessage::-webkit-scrollbar-thumb {
+    background: rgba(100, 116, 139, .35);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+}
+
+.dark #chatMessage::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, .22);
+}
+
+#chatMessage::-webkit-scrollbar-thumb:hover {
+    background: rgba(100, 116, 139, .55);
+}
+
+.dark #chatMessage::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, .35);
+}

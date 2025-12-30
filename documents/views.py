@@ -3,6 +3,7 @@ from pathlib import Path
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_http_methods
 from django.http import JsonResponse, HttpResponse
 from django.utils import timezone
 from django.db.models import Q
@@ -10,7 +11,8 @@ from django.db.models import Q
 from .services.upload_validation import validate_files, get_limits
 from .services.combined_summarizer import build_combined_summary, build_combined_title_and_summary
 from .services.processor import process_document
-from .models import Document, CombinedSummary
+from .services.chat_service import answer_chat
+from .models import Document, CombinedSummary, Conversation, Message
 
 def health(request):
     return JsonResponse({"status": "ok"})
@@ -168,3 +170,44 @@ def combined_detail(request, pk: int):
 def combined_list(request):
     items = CombinedSummary.objects.filter(owner=request.user).order_by("-created_at")
     return render(request, "documents/combined_list.html", {"items": items})
+
+@login_required
+def chat_document(request, pk: int):
+    doc = get_object_or_404(Document, pk=pk, owner=request.user)
+    conv, _ = Conversation.objects.get_or_create(owner=request.user, document=doc)
+    if not conv.title:
+        conv.title = f"Chat: {doc.file_name}"
+        conv.save(update_fields=["title"])
+    return redirect("documents:chat_view", conv_id=conv.id)
+
+@login_required
+def chat_notebook(request, pk: int):
+    nb = get_object_or_404(CombinedSummary, pk=pk, owner=request.user)
+    conv, _ = Conversation.objects.get_or_create(owner=request.user, notebook=nb)
+    if not conv.title:
+        conv.title = f"Chat: {nb.title}"
+        conv.save(update_fields=["title"])
+    return redirect("documents:chat_view", conv_id=conv.id)
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def chat_view(request, conv_id: int):
+    conv = get_object_or_404(Conversation, pk=conv_id, owner=request.user)
+
+    if request.method == "POST":
+        user_text = (request.POST.get("message") or "").strip()
+        if not user_text:
+            return redirect("documents:chat_view", conv_id=conv.id)
+
+        Message.objects.create(conversation=conv, role="user", content=user_text)
+
+        assistant_text = answer_chat(conv, user_text) or "I couldn't generate a response."
+        Message.objects.create(conversation=conv, role="assistant", content=assistant_text)
+
+        return redirect("documents:chat_view", conv_id=conv.id)
+
+    msgs = conv.messages.all()
+    return render(request, "documents/chat.html", {
+        "conv": conv,
+        "chat_messages": msgs,
+    })
