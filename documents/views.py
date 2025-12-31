@@ -3,7 +3,8 @@ from pathlib import Path
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods, require_POST
 from django.http import JsonResponse, HttpResponse
 from django.utils import timezone
 from django.db.models import Q
@@ -210,4 +211,24 @@ def chat_view(request, conv_id: int):
     return render(request, "documents/chat.html", {
         "conv": conv,
         "chat_messages": msgs,
+    })
+
+@login_required
+@require_POST
+def chat_api(request, conv_id: int):
+    conv = get_object_or_404(Conversation, pk=conv_id, owner=request.user)
+
+    user_text = (request.POST.get("message") or "").strip()
+    if not user_text:
+        return JsonResponse({"ok": False, "error": "Empty message"}, status=400)
+
+    Message.objects.create(conversation=conv, role="user", content=user_text)
+
+    assistant_text = answer_chat(conv, user_text) or "I couldn't generate a response."
+    Message.objects.create(conversation=conv, role="assistant", content=assistant_text)
+
+    return JsonResponse({
+        "ok": True,
+        "assistant": assistant_text,
+        "created_at": timezone.now().strftime("%b. %d, %Y, %I:%M %p"),
     })

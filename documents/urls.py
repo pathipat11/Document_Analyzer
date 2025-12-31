@@ -20,4 +20,5 @@ urlpatterns = [
     path("chat/document/<int:pk>/", views.chat_document, name="chat_document"),
     path("chat/notebook/<int:pk>/", views.chat_notebook, name="chat_notebook"),
     path("chat/<int:conv_id>/", views.chat_view, name="chat_view"),
+    path("chat/<int:conv_id>/api/", views.chat_api, name="chat_api"),
 ]

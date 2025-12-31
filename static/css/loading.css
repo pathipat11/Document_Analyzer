@@ -1,0 +1,44 @@
+#globalLoader {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(2, 6, 23, 0.35);
+    /* slate-950-ish */
+    backdrop-filter: blur(6px);
+}
+
+.dark #globalLoader {
+    background: rgba(2, 6, 23, 0.55);
+}
+
+.loader-card {
+    width: min(420px, calc(100vw - 32px));
+    border-radius: 16px;
+    padding: 18px 18px;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    background: rgba(255, 255, 255, 0.78);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .18);
+}
+
+.dark .loader-card {
+    background: rgba(15, 23, 42, 0.72);
+    border-color: rgba(148, 163, 184, 0.18);
+}
+
+.spinner {
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    border: 3px solid rgba(100, 116, 139, 0.25);
+    border-top-color: rgba(37, 99, 235, 0.9);
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}

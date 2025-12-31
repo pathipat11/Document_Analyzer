@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/static/css/tailwind.css">
     <link rel="stylesheet" href="/static/css/toggle.css">
     <link rel="stylesheet" href="/static/css/chat.css">
+    <link rel="stylesheet" href="/static/css/loading.css">
     <style>
         @keyframes slide-in {
             from {
@@ -66,6 +67,52 @@
             });
         });
 
+        function showGlobalLoader() {
+            const el = document.getElementById("globalLoader");
+            if (!el) return;
+            el.style.display = "flex";
+        }
+        function hideGlobalLoader() {
+            const el = document.getElementById("globalLoader");
+            if (!el) return;
+            el.style.display = "none";
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            // show on normal navigation clicks
+            document.addEventListener("click", (e) => {
+                const a = e.target.closest("a");
+                if (!a) return;
+
+                // ignore new tab / downloads / anchors / modifiers
+                const href = a.getAttribute("href") || "";
+                if (!href || href.startsWith("#")) return;
+                if (a.hasAttribute("download")) return;
+                if (a.target === "_blank") return;
+                if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+
+                showGlobalLoader();
+            });
+
+            // show on form submit
+            document.addEventListener("submit", (e) => {
+                const form = e.target;
+                if (!(form instanceof HTMLFormElement)) return;
+
+                // optional: don't show on GET forms
+                // if ((form.method || "get").toLowerCase() === "get") return;
+
+                if (form.dataset.noGlobalLoader === "1") return;
+
+                showGlobalLoader();
+            });
+
+            // hide when page restored from bfcache (back/forward cache)
+            window.addEventListener("pageshow", (evt) => {
+                if (evt.persisted) hideGlobalLoader();
+            });
+        });
+
     </script>
 </head>
 
@@ -74,7 +121,8 @@
         <div class="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
             <div class="flex items-center gap-3">
                 <div
-                    class="h-9 w-9 rounded-xl bg-linear-to-br from-blue-600 to-indigo-600 ring-1 ring-black/5 dark:ring-white/10">
+                    class="h-9 w-9 rounded-xl bg-linear-to-br from-white-600 to-gray-300 ring-1 ring-black/5 dark:ring-white/10">
+                    <img src="/static/images/profile.png" alt="/static/images/profile.png" class="h-full w-full rounded-xl">
                 </div>
                 <div>
                     <div class="text-lg font-semibold leading-tight">Document Analyzer</div>
@@ -221,6 +269,19 @@
             Prototype — files stored locally in <code class="rounded bg-slate-100 px-1 dark:bg-slate-800">media/</code>
         </div>
     </footer>
+
+    <div id="globalLoader" aria-hidden="true">
+        <div class="loader-card">
+            <div class="flex items-center gap-3">
+                <div class="spinner"></div>
+                <div>
+                    <div class="text-sm font-semibold text-slate-900 dark:text-slate-100">Loading…</div>
+                    <div class="text-xs text-slate-500 dark:text-slate-400">Please wait</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </body>
 
 </html>
