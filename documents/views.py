@@ -1,6 +1,7 @@
 import csv
 from pathlib import Path
 from django.shortcuts import render, redirect, get_object_or_404
+from django.core.cache import cache
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
@@ -219,12 +220,24 @@ def chat_api(request, conv_id: int):
     conv = get_object_or_404(Conversation, pk=conv_id, owner=request.user)
 
     user_text = (request.POST.get("message") or "").strip()
+    rid = (request.POST.get("request_id") or "").strip()
+
     if not user_text:
         return JsonResponse({"ok": False, "error": "Empty message"}, status=400)
+    if not rid:
+        return JsonResponse({"ok": False, "error": "Missing request_id"}, status=400)
 
-    Message.objects.create(conversation=conv, role="user", content=user_text)
+    # Save user msg (ถ้าอยาก “cancel แล้วไม่เก็บ user ด้วย” ดูหมายเหตุด้านล่าง)
+    user_msg = Message.objects.create(conversation=conv, role="user", content=user_text)
 
     assistant_text = answer_chat(conv, user_text) or "I couldn't generate a response."
+
+    # ✅ ถ้าถูก cancel ระหว่างรอ LLM → ไม่ save assistant และตอบว่า canceled
+    if cache.get(f"chat_cancel:{conv.id}:{rid}"):
+        # ทางเลือก: ลบ user message ที่เพิ่งสร้างด้วย
+        user_msg.delete()
+        return JsonResponse({"ok": False, "canceled": True}, status=409)
+
     Message.objects.create(conversation=conv, role="assistant", content=assistant_text)
 
     return JsonResponse({
@@ -232,3 +245,14 @@ def chat_api(request, conv_id: int):
         "assistant": assistant_text,
         "created_at": timezone.now().strftime("%b. %d, %Y, %I:%M %p"),
     })
+    
+@login_required
+@require_POST
+def chat_cancel_api(request, conv_id: int):
+    conv = get_object_or_404(Conversation, pk=conv_id, owner=request.user)
+    rid = (request.POST.get("request_id") or "").strip()
+    if not rid:
+        return JsonResponse({"ok": False, "error": "Missing request_id"}, status=400)
+
+    cache.set(f"chat_cancel:{conv.id}:{rid}", True, timeout=300)
+    return JsonResponse({"ok": True})
