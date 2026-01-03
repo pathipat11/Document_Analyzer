@@ -1,4 +1,4 @@
-import csv
+import csv, json
 from pathlib import Path
 from django.shortcuts import render, redirect, get_object_or_404
 from django.core.cache import cache
@@ -6,14 +6,14 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods, require_POST
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse, HttpResponse, StreamingHttpResponse
 from django.utils import timezone
 from django.db.models import Q
 
 from .services.upload_validation import validate_files, get_limits
 from .services.combined_summarizer import build_combined_summary, build_combined_title_and_summary
 from .services.processor import process_document
-from .services.chat_service import answer_chat
+from .services.chat_service import answer_chat, answer_chat_stream
 from .models import Document, CombinedSummary, Conversation, Message
 
 def health(request):
@@ -245,7 +245,67 @@ def chat_api(request, conv_id: int):
         "assistant": assistant_text,
         "created_at": timezone.now().strftime("%b. %d, %Y, %I:%M %p"),
     })
-    
+
+@login_required
+@require_POST
+def chat_stream_api(request, conv_id: int):
+    conv = get_object_or_404(Conversation, pk=conv_id, owner=request.user)
+
+    user_text = (request.POST.get("message") or "").strip()
+    rid = (request.POST.get("request_id") or "").strip()
+
+    if not user_text:
+        return JsonResponse({"ok": False, "error": "Empty message"}, status=400)
+    if not rid:
+        return JsonResponse({"ok": False, "error": "Missing request_id"}, status=400)
+
+    # clear cancel flag (กันของเก่าค้าง)
+    cache.delete(f"chat_cancel:{conv.id}:{rid}")
+
+    # save user message ก่อน
+    user_msg = Message.objects.create(conversation=conv, role="user", content=user_text)
+
+    def sse(event: str, data: dict):
+        return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+    def gen():
+        assistant_chunks = []
+        try:
+            def stopped():
+                return cache.get(f"chat_cancel:{conv.id}:{rid}") is True
+
+            for token in answer_chat_stream(conv, user_text, should_stop=stopped):
+                if stopped():
+                    yield sse("canceled", {"ok": False})
+                    return
+
+                assistant_chunks.append(token)
+                yield sse("token", {"t": token})
+
+            assistant_text = "".join(assistant_chunks).strip() or "I couldn't generate a response."
+
+            if cache.get(f"chat_cancel:{conv.id}:{rid}"):
+                user_msg.delete()
+                yield sse("canceled", {"ok": False})
+                return
+
+
+            Message.objects.create(conversation=conv, role="assistant", content=assistant_text)
+
+            yield sse("done", {
+                "ok": True,
+                "created_at": timezone.now().strftime("%b. %d, %Y, %I:%M %p"),
+            })
+
+        except Exception as e:
+            yield sse("error", {"ok": False, "error": str(e)})
+
+    resp = StreamingHttpResponse(gen(), content_type="text/event-stream; charset=utf-8")
+    resp["Cache-Control"] = "no-cache"
+    resp["X-Accel-Buffering"] = "no"  # กัน nginx buffer (ถ้ามี)
+    return resp
+
+
 @login_required
 @require_POST
 def chat_cancel_api(request, conv_id: int):

@@ -1,6 +1,8 @@
 from __future__ import annotations
+import json
 from typing import Any, Dict
 import logging
+from urllib import request
 
 import ollama
 from django.conf import settings
@@ -65,3 +67,26 @@ def generate_json(system: str, user: str) -> Dict[str, Any]:
     except Exception as e:
         logger.warning("Invalid JSON from model=%s raw=%r", model, raw[:300])
         raise LLMError(f"Invalid JSON: {raw[:200]}") from e
+
+def generate_text_stream(system: str, user: str):
+    model = getattr(settings, "OLLAMA_MODEL", "llama3")
+
+    try:
+        stream = _client().chat(
+            model=model,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            options={"temperature": 0.2},
+            stream=True,
+        )
+
+        for part in stream:
+            # chunk รูปแบบประมาณ: {"message": {"role": "assistant", "content": "..."}, ...}
+            chunk = (part.get("message", {}) or {}).get("content") or ""
+            if chunk:
+                yield chunk
+
+    except Exception as e:
+        raise LLMError(str(e)) from e

@@ -3,13 +3,15 @@
 
 {% block content %}
 <div id="chatRoot" data-chat-api-url="{% url 'documents:chat_api' conv.id %}"
+    data-chat-stream-url="{% url 'documents:chat_stream_api' conv.id %}"
     data-chat-cancel-url="{% url 'documents:chat_cancel_api' conv.id %}" data-csrf="{{ csrf_token }}">
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h1 class="text-xl font-semibold">{{ conv.title|default:"Chat" }}</h1>
             <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 {% if conv.document_id %}
-                Context: <span class="font-medium text-slate-700 dark:text-slate-200">{{ conv.document.file_name }}</span>
+                Context: <span class="font-medium text-slate-700 dark:text-slate-200">{{ conv.document.file_name
+                    }}</span>
                 {% else %}
                 Context: <span class="font-medium text-slate-700 dark:text-slate-200">{{ conv.notebook.title }}</span>
                 {% endif %}
@@ -107,11 +109,7 @@
                     </div>
                 </div>
 
-                <button class="btn h-11.5 px-5 self-start" type="submit">Send</button>
-                <button id="cancelBtn" class="btn-outline h-11.5 px-4 self-start hidden" type="button">
-                    Cancel
-                </button>
-
+                <button id="sendBtn" class="btn h-11.5 px-5 self-start" type="submit">Send</button>
             </form>
         </div>
 

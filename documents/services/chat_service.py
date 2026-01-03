@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Optional
 
-from .llm_client import generate_text, LLMError
+from .llm_client import generate_text, LLMError, generate_text_stream
 from .lang_detect import detect_language
 from documents.models import Conversation, Message, Document, CombinedSummary
 
@@ -148,3 +148,55 @@ Rules:
         return (generate_text(system, user) or "").strip()
     except LLMError:
         return ""
+
+def answer_chat_stream(conv: Conversation, user_question: str, should_stop=None):
+    q = (user_question or "").strip()
+    if not q:
+        yield ""
+        return
+
+    if conv.document_id:
+        doc = conv.document
+        context = _document_context(doc)
+    else:
+        nb = conv.notebook
+        context = _notebook_context(nb)
+
+    q_lang = detect_language(q)
+    lang = q_lang if q_lang in ("th", "en") else _pick_lang(context, q)
+    lang_instruction = "Write in Thai." if lang == "th" else "Write in English."
+
+    history = _build_history(conv)
+
+    system = (
+        "You are a helpful assistant for a local document analyzer app.\n"
+        "You must answer using ONLY the provided CONTEXT.\n"
+        "Always reply in the same language as the USER QUESTION.\n"
+        "If the answer is not in the context, say you don't have enough information "
+        "and suggest what to upload or what to ask next.\n"
+        "Be concise, but clear.\n"
+    )
+
+    user = f"""
+{lang_instruction}
+
+CONTEXT (authoritative):
+{_trim(context, max_chars=MAX_CONTEXT_CHARS)}
+
+USER QUESTION:
+{q}
+
+Rules:
+- Use ONLY the context above.
+- No disclaimers.
+- If missing info, say what is missing and suggest next step.
+"""
+
+    if history:
+        hist_text = "\n".join([f"{m['role'].upper()}: {m['content']}" for m in history])
+        user = f"{user}\n\nCHAT HISTORY (most recent):\n{_trim(hist_text, max_chars=4000)}"
+
+    for t in generate_text_stream(system, user):
+        if should_stop and should_stop():
+            return
+        yield t
