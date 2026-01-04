@@ -63,7 +63,7 @@
                 </label>
 
                 <span class="text-xs text-slate-500 dark:text-slate-400">
-                    {{ docs|length }} documents
+                    {{ page_obj.paginator.count }} documents
                 </span>
             </div>
 
@@ -76,6 +76,7 @@
                             <th class="px-4 py-3 text-left font-medium">Type</th>
                             <th class="px-4 py-3 text-left font-medium">Words</th>
                             <th class="px-4 py-3 text-left font-medium">Uploaded</th>
+                            <th class="px-4 py-3 text-left font-medium">Actions</th>
                         </tr>
                     </thead>
 
@@ -84,7 +85,8 @@
                         <tr class="hover:bg-slate-50/70 dark:hover:bg-slate-900/30">
                             <td class="px-4 py-3">
                                 <input type="checkbox" name="doc_ids" value="{{ d.id }}"
-                                    class="docCheckbox h-4 w-4 rounded border-slate-300 dark:border-slate-700">
+                                    class="docCheckbox h-4 w-4 rounded border-slate-300 dark:border-slate-700"
+                                    data-doc-id="{{ d.id }}">
                             </td>
 
                             <td class="px-4 py-3">
@@ -108,6 +110,16 @@
                             <td class="px-4 py-3 text-slate-600 dark:text-slate-300">
                                 {{ d.uploaded_at|date:"Y-m-d H:i" }}
                             </td>
+
+                            <td class="px-4 py-3">
+                                {# ✅ no nested form: submit to delete form outside #}
+                                <button type="submit" form="deleteForm-{{ d.id }}"
+                                    class="deleteBtn btn-outline text-red-600 dark:text-red-300"
+                                    data-delete-for="{{ d.id }}"
+                                    onclick="return confirm('Delete this document? This cannot be undone.');">
+                                    Delete
+                                </button>
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -118,6 +130,36 @@
                 class="border-t border-slate-200 px-4 py-3 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
                 Tip: combine works best when documents are on the same topic.
             </div>
+
+            {% if page_obj and page_obj.paginator.num_pages > 1 %}
+            <div class="flex items-center justify-between border-t border-slate-200 px-4 py-3
+                      dark:border-slate-800">
+                <div class="text-xs text-slate-500 dark:text-slate-400">
+                    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                </div>
+
+                <div class="flex items-center gap-2">
+                    {% if page_obj.has_previous %}
+                    <a class="btn-outline"
+                        href="?page={{ page_obj.previous_page_number }}{% if dtype %}&type={{ dtype }}{% endif %}">
+                        Prev
+                    </a>
+                    {% else %}
+                    <span class="btn-outline opacity-50 cursor-not-allowed">Prev</span>
+                    {% endif %}
+
+                    {% if page_obj.has_next %}
+                    <a class="btn-outline"
+                        href="?page={{ page_obj.next_page_number }}{% if dtype %}&type={{ dtype }}{% endif %}">
+                        Next
+                    </a>
+                    {% else %}
+                    <span class="btn-outline opacity-50 cursor-not-allowed">Next</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
             {% else %}
             <div class="p-6 text-sm text-slate-500 dark:text-slate-400">
                 No documents yet. Click “Upload” to add one.
@@ -125,6 +167,19 @@
             {% endif %}
         </div>
     </form>
+
+    {# ✅ IMPORTANT: delete forms must be OUTSIDE combineForm (no nested forms) #}
+    {% for d in docs %}
+    <form id="deleteForm-{{ d.id }}" method="post" action="{% url 'documents:delete' d.pk %}">
+        {% csrf_token %}
+        {% if dtype %}
+        <input type="hidden" name="dtype" value="{{ dtype }}">
+        {% endif %}
+        {% if page_obj %}
+        <input type="hidden" name="page" value="{{ page_obj.number }}">
+        {% endif %}
+    </form>
+    {% endfor %}
 
 </div>
 
@@ -138,6 +193,18 @@
         combineBtn.disabled = disabled;
         combineBtn.classList.toggle("opacity-50", disabled);
         combineBtn.classList.toggle("cursor-not-allowed", disabled);
+    }
+
+    function updateDeleteButtons() {
+        const selectedIds = new Set(checkboxes.filter(cb => cb.checked).map(cb => cb.value));
+        document.querySelectorAll(".deleteBtn").forEach(btn => {
+            const id = btn.getAttribute("data-delete-for");
+            const disabled = selectedIds.has(id);
+            btn.disabled = disabled;
+            btn.classList.toggle("opacity-50", disabled);
+            btn.classList.toggle("cursor-not-allowed", disabled);
+            btn.title = disabled ? "Unselect this document to delete." : "";
+        });
     }
 
     function updateState() {
@@ -158,6 +225,7 @@
                 selectAll.indeterminate = true;
             }
         }
+        updateDeleteButtons();
     }
 
     if (selectAll) {

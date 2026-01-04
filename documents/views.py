@@ -1,5 +1,6 @@
 import csv, json
 from pathlib import Path
+from django.urls import reverse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.core.cache import cache
 from django.contrib import messages
@@ -7,8 +8,10 @@ from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods, require_POST
 from django.http import JsonResponse, HttpResponse, StreamingHttpResponse
+from django.core.paginator import Paginator
 from django.utils import timezone
 from django.db.models import Q
+from urllib.parse import urlencode
 
 from .services.upload_validation import validate_files, get_limits
 from .services.combined_summarizer import build_combined_summary, build_combined_title_and_summary
@@ -73,7 +76,6 @@ def upload_document(request):
 
     return render(request, "documents/upload.html", {"limits": limits})
 
-
 @login_required
 def document_detail(request, pk: int):
     doc = get_object_or_404(Document, pk=pk, owner=request.user)
@@ -83,17 +85,54 @@ def document_detail(request, pk: int):
 def document_list(request):
     dtype = (request.GET.get("type") or "").strip().lower()
 
-    docs = Document.objects.filter(owner=request.user).order_by("-uploaded_at")
+    qs = Document.objects.filter(owner=request.user).order_by("-uploaded_at")
     if dtype:
-        docs = docs.filter(document_type=dtype)
+        qs = qs.filter(document_type=dtype)
 
     type_choices = ["invoice","announcement","policy","proposal","report","research","resume","other"]
 
+    paginator = Paginator(qs, 10)
+    page_number = request.GET.get("page") or 1
+    page_obj = paginator.get_page(page_number)
+
     return render(request, "documents/list.html", {
-        "docs": docs,
+        "docs": page_obj.object_list,
         "dtype": dtype,
         "type_choices": type_choices,
+        "page_obj": page_obj,
+        "paginator": paginator,
     })
+
+
+@login_required
+@require_POST
+def delete_document(request, pk: int):
+    doc = get_object_or_404(Document, pk=pk, owner=request.user)
+    page = (request.POST.get("page") or "").strip()
+
+    dtype = (request.POST.get("dtype") or "").strip().lower()
+
+    file_field = doc.file
+    file_name = doc.file_name
+
+    try:
+        if file_field:
+            file_field.delete(save=False)
+    except Exception:
+        pass
+
+    doc.delete()
+    messages.success(request, f"Deleted: {file_name}")
+
+    if dtype or page:
+        qs = {}
+        if dtype:
+            qs["type"] = dtype
+        if page:
+            qs["page"] = page
+        return redirect(f"{reverse('documents:list')}?{urlencode(qs)}")
+
+    return redirect("documents:list")
 
 @login_required
 def reprocess_document(request, pk: int):
