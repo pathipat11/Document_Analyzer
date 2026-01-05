@@ -41,6 +41,25 @@ The project is built as a **prototype** to explore document processing workflows
 * AI-generated notebook title based on document content
 * View combined summaries separately from individual documents
 
+### Chat Q&A (Streaming + Cancel)
+
+* Chat with a **single document** or a **notebook** (combined summary)
+* **Streaming responses (SSE)** for ChatGPT-like UX (tokens appear as they are generated)
+* **Single send/cancel button** (Send ↔ Cancel)
+* Client-side abort via **AbortController**
+* Server-side cancel flag to stop generation early and avoid saving partial assistant messages
+* Recent chat history is included (limited turns) to keep context relevant and bounded
+
+### Document List UX (Pagination + Safe Delete)
+
+* Document list pagination (**10 items per page**)
+* Filter by document type (works together with pagination)
+* Delete documents from the list
+
+  * Deletes the uploaded file from storage and the DB record
+  * Redirects back to the same filter + page after deletion
+  * UI prevents deleting a document that is currently selected for combining
+
 ### User Interface
 
 * Clean UI built with Tailwind CSS
@@ -103,7 +122,19 @@ There are two ways to create a notebook-style summary:
 * Click **Combine & Summarize**
 * A new notebook summary will be created
 
-### 5. View Combined Summaries
+### 5. Chat with a Document / Notebook
+
+* Open a **Document** detail page or a **Combined** notebook page
+* Click **Chat**
+* Ask questions about the selected context
+
+While the assistant responds:
+
+* Tokens will stream into the chat bubble in real time
+* The **Send** button turns into **Cancel**
+* Cancel stops the response early (client abort + server cancel)
+
+### 6. View Combined Summaries
 
 * Navigate to **Combined** from the top menu
 * Each combined summary displays:
@@ -112,7 +143,7 @@ There are two ways to create a notebook-style summary:
   * Consolidated summary across documents
   * List of source documents used
 
-### 6. Export Data
+### 7. Export Data
 
 * From the document list, use **Export CSV** to download document metadata
 * Filters applied in the UI will be reflected in the exported file
@@ -127,12 +158,15 @@ There are two ways to create a notebook-style summary:
 
   * HTTP request handling
   * Authentication and access control
-  * Upload, list, detail, and combine workflows
+  * Upload, list, detail, combine workflows
+  * Chat endpoints: JSON API and SSE streaming
+  * Delete endpoint
 
 * `documents/models.py`
 
   * `Document`: individual uploaded document
   * `CombinedSummary`: notebook-style summary created from multiple documents
+  * `Conversation` / `Message`: persistent chat history per document/notebook
 
 * `documents/services/`
 
@@ -144,6 +178,7 @@ There are two ways to create a notebook-style summary:
   * `combined_summarizer.py`: multi-document map-reduce summarization
   * `title_generator.py`: AI-generated notebook titles
   * `lang_detect.py`: simple language detection (Thai / English)
+  * `chat_service.py`: builds context + history and generates answers (sync + streaming)
 
 This separation keeps views thin and business logic reusable and testable.
 
@@ -158,6 +193,10 @@ Upload → Validate → Save File → Extract Text → Compute Metadata → LLM 
 ### Multiple Documents (Notebook Style)
 
 Upload Multiple Files → Validate → Save Files → Extract & Summarize Each → Generate Notebook Title → Create Combined Summary → Notebook Detail View
+
+### Chat (Streaming)
+
+Open chat → Send message → Create user message → Stream assistant tokens via SSE → Save final assistant message (unless canceled)
 
 ### Mermaid Flow Diagram
 
@@ -191,6 +230,14 @@ flowchart TD
 (4-6 bullets)]
   Q --> R[Create CombinedSummary + link documents]
   R --> S[Redirect: Combined summary detail]
+
+  %% Chat
+  T[User opens chat] --> U[Send message]
+  U --> V[Create user Message row]
+  V --> W[Stream assistant tokens via SSE]
+  W --> X{Canceled?}
+  X -->|Yes| Y[Stop + do not save assistant]
+  X -->|No| Z[Save final assistant Message]
 ```
 
 ---
@@ -314,6 +361,7 @@ Admin (optional):
 * **Ollama not responding**: confirm Ollama is running at `OLLAMA_HOST` and the model is pulled.
 * **PDF produces empty text**: the PDF may be scanned/image-based; OCR is not included in this prototype.
 * **Large uploads feel slow**: processing is synchronous in this prototype; consider background jobs as a next step.
+* **Streaming not updating**: ensure the chat stream endpoint returns `text/event-stream` and proxy buffering is disabled (`X-Accel-Buffering: no` for Nginx).
 
 ---
 
@@ -329,8 +377,9 @@ Admin (optional):
 ## Future Improvements
 
 * Background processing (Celery / task queue)
-* Chat-based Q&A over documents and notebooks
 * Embedding-based retrieval for large document sets
 * Export combined summaries as Markdown or text
+* Role-based access control (teams/shared notebooks)
+* Usage metrics and rate limiting
 
 ---
