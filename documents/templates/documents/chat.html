@@ -10,8 +10,7 @@
             <h1 class="text-xl font-semibold">{{ conv.title|default:"Chat" }}</h1>
             <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 {% if conv.document_id %}
-                Context: <span class="font-medium text-slate-700 dark:text-slate-200">{{ conv.document.file_name
-                    }}</span>
+                Context: <span class="font-medium text-slate-700 dark:text-slate-200">{{ conv.document.file_name }}</span>
                 {% else %}
                 Context: <span class="font-medium text-slate-700 dark:text-slate-200">{{ conv.notebook.title }}</span>
                 {% endif %}
@@ -79,7 +78,7 @@
             </div>
             {% endif %}
             {% empty %}
-            <div class="grid place-items-center h-full">
+            <div id="chatEmptyState" class="grid place-items-center h-full">
                 <div class="text-center">
                     <div class="mx-auto mb-2 h-10 w-10 rounded-2xl bg-slate-100 dark:bg-slate-800"></div>
                     <div class="text-sm font-medium text-slate-700 dark:text-slate-200">Start a conversation</div>

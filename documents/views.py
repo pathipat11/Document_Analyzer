@@ -10,7 +10,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 from django.http import JsonResponse, HttpResponse, StreamingHttpResponse
 from django.core.paginator import Paginator
 from django.utils import timezone
-from django.db.models import Q
+from django.db.models import Q, Exists, OuterRef
 from urllib.parse import urlencode
 
 from .services.upload_validation import validate_files, get_limits
@@ -89,20 +89,27 @@ def document_list(request):
     if dtype:
         qs = qs.filter(document_type=dtype)
 
-    type_choices = ["invoice","announcement","policy","proposal","report","research","resume","other"]
+    qs = qs.annotate(
+        has_chat=Exists(
+            Conversation.objects.filter(owner=request.user, document_id=OuterRef("pk"))
+        )
+    )
+
+    # Optional: count messages per doc (enable if you want)
+    # qs = qs.annotate(chat_messages=Count("conversations__messages", distinct=True))
 
     paginator = Paginator(qs, 10)
     page_number = request.GET.get("page") or 1
     page_obj = paginator.get_page(page_number)
+
+    type_choices = ["invoice", "announcement", "policy", "proposal", "report", "research", "resume", "other"]
 
     return render(request, "documents/list.html", {
         "docs": page_obj.object_list,
         "dtype": dtype,
         "type_choices": type_choices,
         "page_obj": page_obj,
-        "paginator": paginator,
     })
-
 
 @login_required
 @require_POST

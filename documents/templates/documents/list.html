@@ -76,6 +76,7 @@
                             <th class="px-4 py-3 text-left font-medium">Type</th>
                             <th class="px-4 py-3 text-left font-medium">Words</th>
                             <th class="px-4 py-3 text-left font-medium">Uploaded</th>
+                            <th class="px-4 py-3 text-left font-medium">Chat</th>
                             <th class="px-4 py-3 text-left font-medium">Actions</th>
                         </tr>
                     </thead>
@@ -90,6 +91,9 @@
                             </td>
 
                             <td class="px-4 py-3">
+                                {% if d.has_chat %}
+                                <span class="mt-0.5 select-none text-xs">💬</span>
+                                {% endif %}
                                 <a class="font-medium text-blue-700 hover:underline dark:text-blue-300"
                                     href="{% url 'documents:detail' d.pk %}">
                                     {{ d.file_name }}
@@ -108,13 +112,21 @@
 
                             <td class="px-4 py-3">{{ d.word_count }}</td>
                             <td class="px-4 py-3 text-slate-600 dark:text-slate-300">
-                                {{ d.uploaded_at|date:"Y-m-d H:i" }}
+                                {{ d.uploaded_at|date:"j M Y H:i" }}
+                            </td>
+
+                            <td class="px-4 py-3">
+                                <div class="flex items-center gap-2">
+                                    <a class="btn-outline" href="{% url 'documents:chat_document' d.pk %}">
+                                        {% if d.has_chat %}Continue{% else %}Chat{% endif %}
+                                    </a>
+                                </div>
                             </td>
 
                             <td class="px-4 py-3">
                                 {# ✅ no nested form: submit to delete form outside #}
                                 <button type="submit" form="deleteForm-{{ d.id }}"
-                                    class="deleteBtn btn-outline text-red-600 dark:text-red-300"
+                                    class="deleteBtn btn-outline text-red-400 dark:text-red-300"
                                     data-delete-for="{{ d.id }}"
                                     onclick="return confirm('Delete this document? This cannot be undone.');">
                                     Delete
