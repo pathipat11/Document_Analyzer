@@ -1,6 +1,10 @@
+import os
 from django.conf import settings
 from django.db import models
 from django.core.exceptions import ValidationError
+
+def upload_to_document(instance, filename):
+    return os.path.join("documents", str(instance.owner_id), filename)
 
 class Document(models.Model):
     owner = models.ForeignKey(

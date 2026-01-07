@@ -195,7 +195,9 @@ Rules:
     if history:
         hist_text = "\n".join([f"{m['role'].upper()}: {m['content']}" for m in history])
         user = f"{user}\n\nCHAT HISTORY (most recent):\n{_trim(hist_text, max_chars=4000)}"
-
+        print("Q:", repr(q))
+        print("Q_LANG:", q_lang)
+        print("LANG:", lang)
     for t in generate_text_stream(system, user):
         if should_stop and should_stop():
             return

@@ -8,6 +8,7 @@ from documents.models import Document
 from .text_extractor import extract_text
 from .summarizer import summarize_text
 from .classifier import classify_text
+from .file_organizer import move_document_file_to_type_folder
 
 logger = logging.getLogger(__name__)
 
@@ -34,4 +35,5 @@ def process_document(doc: Document) -> Document:
         "summary",
         "document_type",
     ])
+    move_document_file_to_type_folder(doc)
     return doc
