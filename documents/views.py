@@ -259,8 +259,6 @@ def chat_view(request, conv_id: int):
 
         Message.objects.create(conversation=conv, role="assistant", content=assistant_text)
 
-        Message.objects.create(conversation=conv, role="assistant", content=assistant_text)
-
         return redirect("documents:chat_view", conv_id=conv.id)
 
     msgs = conv.messages.all()
@@ -319,14 +317,15 @@ def chat_stream_api(request, conv_id: int):
         return JsonResponse({"ok": False, "error": "Empty message"}, status=400)
     if not rid:
         return JsonResponse({"ok": False, "error": "Missing request_id"}, status=400)
-    
-    if not check_daily_limit(request.user.id):
-        return JsonResponse({"ok": False, "error": "Daily LLM limit reached. Please try again tomorrow."}, status=429)
 
-    # clear cancel flag (กันของเก่าค้าง)
     cache.delete(f"chat_cancel:{conv.id}:{rid}")
 
-    # save user message ก่อน
+    if not check_daily_limit(request.user.id):
+        return JsonResponse(
+            {"ok": False, "error": "Daily LLM limit reached. Please try again tomorrow."},
+            status=429,
+        )
+
     user_msg = Message.objects.create(conversation=conv, role="user", content=user_text)
 
     def sse(event: str, data: dict):
@@ -340,9 +339,9 @@ def chat_stream_api(request, conv_id: int):
 
             for token in answer_chat_stream(conv, user_text, should_stop=stopped):
                 if stopped():
+                    user_msg.delete()
                     yield sse("canceled", {"ok": False})
                     return
-
                 assistant_chunks.append(token)
                 yield sse("token", {"t": token})
 
@@ -354,7 +353,6 @@ def chat_stream_api(request, conv_id: int):
                 return
 
             Message.objects.create(conversation=conv, role="assistant", content=assistant_text)
-
             yield sse("done", {"ok": True, "created_at": timezone.now().strftime("%b. %d, %Y, %I:%M %p")})
 
         except LLMError as e:

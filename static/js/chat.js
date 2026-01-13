@@ -230,9 +230,25 @@
                 });
 
                 if (!resp.ok) {
-                    const raw = await resp.text().catch(() => "");
-                    throw new Error("HTTP " + resp.status + " " + raw.slice(0, 120));
+                    const ct = resp.headers.get("content-type") || "";
+                    let msg = `HTTP ${resp.status}`;
+                    try {
+                        if (ct.includes("application/json")) {
+                            const j = await resp.json();
+                            msg = j?.error ? `${j.error}` : msg;
+                        } else {
+                            const raw = await resp.text().catch(() => "");
+                            msg = raw ? raw.slice(0, 180) : msg;
+                        }
+                    } catch (_) { }
+
+                    // แยกเคส 429 ให้ชัด
+                    if (resp.status === 429) {
+                        throw new Error(msg || "Daily limit reached. Please try again tomorrow.");
+                    }
+                    throw new Error(msg);
                 }
+
 
                 // update bubble as tokens arrive
                 let started = false;
@@ -283,11 +299,14 @@
                 if (err && err.name === "AbortError") {
                     setAssistantHtml(thinkingId, `<span class="opacity-80">Canceled.</span>`, "");
                 } else {
-                    setAssistantHtml(
-                        thinkingId,
-                        `<span class="text-red-600 dark:text-red-300">Error: ${escapeHtml(String(err?.message || err))}</span>`,
-                        ""
-                    );
+                    const em = String(err?.message || err);
+
+                    const isQuota = /daily|limit|quota|429/i.test(em);
+                    const html = isQuota
+                        ? `<span class="text-amber-700 dark:text-amber-300">Limit reached: ${escapeHtml(em)}<br><span class="opacity-80 text-[12px]">Tip: try again tomorrow or lower usage.</span></span>`
+                        : `<span class="text-red-600 dark:text-red-300">Error: ${escapeHtml(em)}</span>`;
+
+                    setAssistantHtml(thinkingId, html, "");
                 }
             } finally {
                 state.controller = null;
