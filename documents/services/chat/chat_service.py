@@ -3,8 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Optional
 
-from .llm_client import generate_text, LLMError, generate_text_stream
-from .lang_detect import detect_language
+from documents.services.llm.client import generate_text, LLMError, generate_text_stream
+from documents.services.analysis.lang_detect import detect_language
+from documents.services.pipeline.retrieval import retrieve_top_chunks
 from documents.models import Conversation, Message, Document, CombinedSummary
 
 
@@ -95,7 +96,7 @@ def answer_chat(conv: Conversation, user_question: str) -> str:
     # context ตาม target
     if conv.document_id:
         doc = conv.document
-        context = _document_context(doc)
+        context = _document_context_for_question(doc, q)
     else:
         nb = conv.notebook
         context = _notebook_context(nb)
@@ -110,6 +111,7 @@ def answer_chat(conv: Conversation, user_question: str) -> str:
 
     system = (
         "You are a helpful assistant for a local document analyzer app.\n"
+        "If you use facts, cite the excerpt id like [C12].\n"
         "You must answer using ONLY the provided CONTEXT.\n"
         "Always reply in the same language as the USER QUESTION.\n"
         "If the answer is not in the context, say you don't have enough information "
@@ -145,9 +147,11 @@ Rules:
         print("Q_LANG:", q_lang)
         print("LANG:", lang)
 
-        return (generate_text(system, user) or "").strip()
-    except LLMError:
-        return ""
+        return (generate_text(system, user, owner=conv.owner, purpose="chat") or "").strip()
+    except LLMError as e:
+        raise
+
+
 
 def answer_chat_stream(conv: Conversation, user_question: str, should_stop=None):
     q = (user_question or "").strip()
@@ -198,7 +202,21 @@ Rules:
         print("Q:", repr(q))
         print("Q_LANG:", q_lang)
         print("LANG:", lang)
-    for t in generate_text_stream(system, user):
+    for t in generate_text_stream(system, user, owner=conv.owner, purpose="chat_stream"):
         if should_stop and should_stop():
             return
         yield t
+        
+def _document_context_for_question(doc: Document, question: str) -> str:
+    parts = []
+    if (doc.summary or "").strip():
+        parts.append(f"SUMMARY:\n{doc.summary.strip()}")
+
+    chunks = retrieve_top_chunks(doc.id, question, k=6)
+    if chunks:
+        lines = []
+        for ch in chunks:
+            lines.append(f"[C{ch.idx}] {ch.content}")
+        parts.append("RELEVANT EXCERPTS:\n" + "\n\n".join(lines))
+
+    return "\n\n".join(parts).strip()

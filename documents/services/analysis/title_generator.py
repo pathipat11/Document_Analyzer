@@ -1,5 +1,5 @@
 from __future__ import annotations
-from .llm_client import generate_text, LLMError
+from documents.services.llm.client import generate_text, LLMError
 from .lang_detect import detect_language
 
 

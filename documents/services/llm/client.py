@@ -1,25 +1,30 @@
 from __future__ import annotations
-
-import json
-import logging
+import boto3, time, json, logging
+from botocore.config import Config
 from typing import Any, Dict, Iterator
+from documents.models import LLMCallLog
+
+from documents.services.llm.guardrails import check_daily_limit, incr_daily_limit
+
 
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-
 class LLMError(Exception):
     pass
-
 
 # -------------------------
 # Bedrock (Claude 3) client
 # -------------------------
 def _bedrock_runtime():
-    import boto3
     region = getattr(settings, "AWS_REGION", "us-east-1")
-    return boto3.client("bedrock-runtime", region_name=region)
+    cfg = Config(
+        retries={"max_attempts": 3, "mode": "standard"},
+        connect_timeout=5,
+        read_timeout=60,
+    )
+    return boto3.client("bedrock-runtime", region_name=region, config=cfg)
 
 
 def _bedrock_model_id() -> str:
@@ -29,9 +34,8 @@ def _bedrock_model_id() -> str:
         raise LLMError("Missing BEDROCK_INFERENCE_PROFILE_ARN in settings.")
     return model_id
 
-
 def _build_claude_payload(system: str, user: str, *, max_tokens: int, temperature: float) -> Dict[str, Any]:
-    # Claude 3 on Bedrock uses "anthropic_version": "bedrock-2023-05-31"
+    # Claude 3.5 on Bedrock uses "anthropic_version": "bedrock-2023-05-31"
     # messages[].content is an array of blocks
     return {
         "anthropic_version": "bedrock-2023-05-31",
@@ -46,7 +50,6 @@ def _build_claude_payload(system: str, user: str, *, max_tokens: int, temperatur
         ],
     }
 
-
 def _extract_claude_text(resp_json: Dict[str, Any]) -> str:
     # Typically: {"content":[{"type":"text","text":"..."}], ...}
     content = resp_json.get("content") or []
@@ -55,7 +58,6 @@ def _extract_claude_text(resp_json: Dict[str, Any]) -> str:
         if isinstance(b, dict) and b.get("type") == "text":
             parts.append(b.get("text") or "")
     return ("".join(parts)).strip()
-
 
 # -------------------------
 # Ollama client (fallback)
@@ -69,23 +71,33 @@ def _ollama_client():
 def _provider() -> str:
     return (getattr(settings, "LLM_PROVIDER", "") or "ollama").lower().strip()
 
+def _enforce_daily_limit(owner):
+    """
+    owner: Django User หรือ None
+    - ถ้าไม่มี owner -> ไม่บังคับ (หรือคุณจะบังคับก็ได้)
+    - ถ้ามี owner -> เช็ค quota
+    """
+    if not owner or not getattr(owner, "id", None):
+        return
+    if not check_daily_limit(owner.id):
+        raise LLMError("Daily LLM limit reached. Please try again tomorrow.")
 
-def generate_text(system: str, user: str) -> str:
-    """
-    คืนข้อความล้วน (ไม่บังคับ JSON)
-    """
+
+
+def generate_text(system: str, user: str, *, owner=None, purpose="") -> str:
     prov = _provider()
+    t0 = time.time()
+    
+    _enforce_daily_limit(owner)
 
-    # ---- Bedrock path ----
     if prov == "bedrock":
+        model_id = _bedrock_model_id()
         try:
             client = _bedrock_runtime()
-            model_id = _bedrock_model_id()
             max_tokens = int(getattr(settings, "BEDROCK_MAX_TOKENS", 800))
             temperature = float(getattr(settings, "BEDROCK_TEMPERATURE", 0.2))
 
             body = _build_claude_payload(system, user, max_tokens=max_tokens, temperature=temperature)
-
             resp = client.invoke_model(
                 modelId=model_id,
                 body=json.dumps(body).encode("utf-8"),
@@ -95,12 +107,39 @@ def generate_text(system: str, user: str) -> str:
 
             raw = resp["body"].read()
             data = json.loads(raw.decode("utf-8"))
-            return _extract_claude_text(data)
+            text = _extract_claude_text(data)
+            
+            if owner and getattr(owner, "id", None):
+                incr_daily_limit(owner.id)
+
+            usage = data.get("usage") or {}
+            in_tok = int(usage.get("input_tokens") or 0)
+            out_tok = int(usage.get("output_tokens") or 0)
+
+            LLMCallLog.objects.create(
+                owner=owner,
+                provider="bedrock",
+                model_id=model_id,
+                purpose=purpose,
+                ok=True,
+                latency_ms=int((time.time() - t0) * 1000),
+                input_tokens=in_tok,
+                output_tokens=out_tok,
+            )
+            return text
 
         except Exception as e:
+            LLMCallLog.objects.create(
+                owner=owner,
+                provider="bedrock",
+                model_id=model_id,
+                purpose=purpose,
+                ok=False,
+                error=str(e),
+                latency_ms=int((time.time() - t0) * 1000),
+            )
             raise LLMError(str(e)) from e
 
-    # ---- Ollama path (existing) ----
     model = getattr(settings, "OLLAMA_MODEL", "llama3")
     try:
         resp = _ollama_client().chat(
@@ -112,16 +151,43 @@ def generate_text(system: str, user: str) -> str:
             options={"temperature": 0.2},
         )
         text = (resp.get("message", {}).get("content") or "").strip()
+
+        if owner and getattr(owner, "id", None):
+            incr_daily_limit(owner.id)
+
+        LLMCallLog.objects.create(
+            owner=owner,
+            provider="ollama",
+            model_id=model,
+            purpose=purpose,
+            ok=True,
+            latency_ms=int((time.time() - t0) * 1000),
+        )
         return text
+
     except Exception as e:
+        LLMCallLog.objects.create(
+            owner=owner,
+            provider="ollama",
+            model_id=model,
+            purpose=purpose,
+            ok=False,
+            error=str(e),
+            latency_ms=int((time.time() - t0) * 1000),
+        )
         raise LLMError(str(e)) from e
 
 
-def generate_text_stream(system: str, user: str) -> Iterator[str]:
+def generate_text_stream(system: str, user: str, *, owner=None, purpose="") -> Iterator[str]:
     """
     Stream tokens/chunks. For Bedrock Claude 3, use invoke_model_with_response_stream.
     """
     prov = _provider()
+    
+    _enforce_daily_limit(owner)
+    
+    if owner and getattr(owner, "id", None):
+        incr_daily_limit(owner.id)
 
     # ---- Bedrock streaming ----
     if prov == "bedrock":
@@ -153,7 +219,10 @@ def generate_text_stream(system: str, user: str) -> Iterator[str]:
                 if not b:
                     continue
 
-                payload = json.loads(b.decode("utf-8"))
+                try:
+                    payload = json.loads(b.decode("utf-8"))
+                except Exception:
+                    continue
 
                 # Claude 3 streaming events typically include:
                 # - "type": "content_block_delta", delta: { "type":"text_delta", "text":"..." }
@@ -193,7 +262,6 @@ def generate_text_stream(system: str, user: str) -> Iterator[str]:
                 yield chunk
     except Exception as e:
         raise LLMError(str(e)) from e
-
 
 def generate_json(system: str, user: str) -> Dict[str, Any]:
     """

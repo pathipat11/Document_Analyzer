@@ -26,6 +26,10 @@ class Document(models.Model):
     word_count = models.IntegerField(default=0)
     char_count = models.IntegerField(default=0)
 
+    status = models.CharField(max_length=20, default="queued")
+    error = models.TextField(blank=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+
     document_type = models.CharField(max_length=50, default="other")
 
     uploaded_at = models.DateTimeField(auto_now_add=True)
@@ -116,3 +120,36 @@ class Message(models.Model):
 
     def __str__(self):
         return f"{self.role}: {self.content[:40]}"
+    
+    
+class LLMCallLog(models.Model):
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True)
+    provider = models.CharField(max_length=30, default="bedrock")  # bedrock/ollama
+    model_id = models.CharField(max_length=255, blank=True)
+
+    purpose = models.CharField(max_length=50, blank=True)  # chat / summarize / classify / title / combined
+    ok = models.BooleanField(default=True)
+    error = models.TextField(blank=True)
+
+    latency_ms = models.IntegerField(default=0)
+    input_tokens = models.IntegerField(default=0)
+    output_tokens = models.IntegerField(default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        
+        
+class DocumentChunk(models.Model):
+    document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name="chunks")
+    idx = models.IntegerField()
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("document", "idx")]
+        ordering = ["idx"]
+
+    def __str__(self):
+        return f"{self.document_id}#{self.idx}"

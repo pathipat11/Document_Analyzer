@@ -13,10 +13,12 @@ from django.utils import timezone
 from django.db.models import Q, Exists, OuterRef
 from urllib.parse import urlencode
 
-from .services.upload_validation import validate_files, get_limits
-from .services.combined_summarizer import build_combined_summary, build_combined_title_and_summary
-from .services.processor import process_document
-from .services.chat_service import answer_chat, answer_chat_stream
+from documents.services.upload.upload_validation import validate_files, get_limits
+from documents.services.analysis.combined_summarizer import build_combined_summary, build_combined_title_and_summary
+from documents.services.pipeline.processor import process_document
+from documents.services.chat.chat_service import answer_chat, answer_chat_stream
+from documents.services.llm.guardrails import check_daily_limit
+from documents.services.llm.client import LLMError
 from .models import Document, CombinedSummary, Conversation, Message
 
 def health(request):
@@ -249,7 +251,14 @@ def chat_view(request, conv_id: int):
 
         Message.objects.create(conversation=conv, role="user", content=user_text)
 
-        assistant_text = answer_chat(conv, user_text) or "I couldn't generate a response."
+        try:
+            assistant_text = answer_chat(conv, user_text) or "I couldn't generate a response."
+        except LLMError as e:
+            messages.error(request, str(e))
+            return redirect("documents:chat_view", conv_id=conv.id)
+
+        Message.objects.create(conversation=conv, role="assistant", content=assistant_text)
+
         Message.objects.create(conversation=conv, role="assistant", content=assistant_text)
 
         return redirect("documents:chat_view", conv_id=conv.id)
@@ -273,10 +282,16 @@ def chat_api(request, conv_id: int):
     if not rid:
         return JsonResponse({"ok": False, "error": "Missing request_id"}, status=400)
 
-    # Save user msg (ถ้าอยาก “cancel แล้วไม่เก็บ user ด้วย” ดูหมายเหตุด้านล่าง)
+    if not check_daily_limit(request.user.id):
+        return JsonResponse({"ok": False, "error": "Daily LLM limit reached. Please try again tomorrow."}, status=429)
+
     user_msg = Message.objects.create(conversation=conv, role="user", content=user_text)
 
-    assistant_text = answer_chat(conv, user_text) or "I couldn't generate a response."
+    try:
+        assistant_text = answer_chat(conv, user_text) or "I couldn't generate a response."
+    except LLMError as e:
+        user_msg.delete()
+        return JsonResponse({"ok": False, "error": str(e)}, status=429)
 
     # ✅ ถ้าถูก cancel ระหว่างรอ LLM → ไม่ save assistant และตอบว่า canceled
     if cache.get(f"chat_cancel:{conv.id}:{rid}"):
@@ -304,6 +319,9 @@ def chat_stream_api(request, conv_id: int):
         return JsonResponse({"ok": False, "error": "Empty message"}, status=400)
     if not rid:
         return JsonResponse({"ok": False, "error": "Missing request_id"}, status=400)
+    
+    if not check_daily_limit(request.user.id):
+        return JsonResponse({"ok": False, "error": "Daily LLM limit reached. Please try again tomorrow."}, status=429)
 
     # clear cancel flag (กันของเก่าค้าง)
     cache.delete(f"chat_cancel:{conv.id}:{rid}")
@@ -335,22 +353,21 @@ def chat_stream_api(request, conv_id: int):
                 yield sse("canceled", {"ok": False})
                 return
 
-
             Message.objects.create(conversation=conv, role="assistant", content=assistant_text)
 
-            yield sse("done", {
-                "ok": True,
-                "created_at": timezone.now().strftime("%b. %d, %Y, %I:%M %p"),
-            })
+            yield sse("done", {"ok": True, "created_at": timezone.now().strftime("%b. %d, %Y, %I:%M %p")})
 
+        except LLMError as e:
+            user_msg.delete()
+            yield sse("error", {"ok": False, "error": str(e), "code": "LLM_ERROR"})
         except Exception as e:
-            yield sse("error", {"ok": False, "error": str(e)})
+            user_msg.delete()
+            yield sse("error", {"ok": False, "error": str(e), "code": "SERVER_ERROR"})
 
     resp = StreamingHttpResponse(gen(), content_type="text/event-stream; charset=utf-8")
     resp["Cache-Control"] = "no-cache"
-    resp["X-Accel-Buffering"] = "no"  # กัน nginx buffer (ถ้ามี)
+    resp["X-Accel-Buffering"] = "no"
     return resp
-
 
 @login_required
 @require_POST

@@ -1,8 +1,8 @@
 from __future__ import annotations
-from .llm_client import generate_text, LLMError
+from documents.services.llm.client import generate_text, LLMError
 from .lang_detect import detect_language
 
-def summarize_text(text: str) -> str:
+def summarize_text(text: str, *, owner=None) -> str:
     clean = (text or "").strip()
     if not clean:
         return ""
@@ -24,7 +24,7 @@ DOCUMENT:
 {clean}
 """
     try:
-        return (generate_text(system, user) or "").strip()
+        return (generate_text(system, user, owner=owner, purpose="summarize") or "").strip()
     except LLMError:
         return ""
 

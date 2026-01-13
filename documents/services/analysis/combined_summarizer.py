@@ -4,7 +4,7 @@ from typing import List, Tuple
 from .summarizer import summarize_text
 from .lang_detect import detect_language
 from .title_generator import generate_title
-from .llm_client import generate_text, LLMError
+from documents.services.llm.client import generate_text, LLMError
 from documents.models import Document
 
 
