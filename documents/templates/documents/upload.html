@@ -12,9 +12,12 @@
                 dark:border-slate-800 dark:bg-slate-950">
         <div><b>Limits</b></div>
         <ul class="mt-2 list-disc pl-5 text-slate-600 dark:text-slate-300">
-            <li>Max files per upload: {{ limits.max_files }}</li>
+            <!-- <li>Max files per upload: {{ limits.max_files }}</li>
             <li>Max total size: {{ limits.max_total_size|floatformat:0 }} bytes</li>
-            <li>Max per file: {{ limits.max_file_size|floatformat:0 }} bytes</li>
+            <li>Max per file: {{ limits.max_file_size|floatformat:0 }} bytes</li> -->
+            <li>Max files per upload: {{ limits.max_files }}</li>
+            <li>Max total size: 20 mb</li>
+            <li>Max per file: 5 mb</li>
         </ul>
     </div>
 

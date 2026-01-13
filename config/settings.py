@@ -132,10 +132,20 @@ MAX_FILES_PER_UPLOAD = int(os.getenv("MAX_FILES_PER_UPLOAD", "5"))
 MAX_TOTAL_UPLOAD_SIZE = int(os.getenv("MAX_TOTAL_UPLOAD_SIZE", "20971520"))  # 20MB
 ALLOWED_EXTENSIONS = set(os.getenv("ALLOWED_EXTENSIONS", "txt,csv,pdf,docx").split(","))
 
+# LLM settings
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
 ENABLE_LLM = os.getenv("ENABLE_LLM", "1") == "1"
 
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama")
+
+AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
+BEDROCK_INFERENCE_PROFILE_ARN = os.getenv("BEDROCK_INFERENCE_PROFILE_ARN", "")
+
+BEDROCK_MAX_TOKENS = int(os.getenv("BEDROCK_MAX_TOKENS", "800"))
+BEDROCK_TEMPERATURE = float(os.getenv("BEDROCK_TEMPERATURE", "0.2"))
+
+# Default primary key field type
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
