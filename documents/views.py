@@ -289,9 +289,10 @@ def chat_api(request, conv_id: int):
         assistant_text = answer_chat(conv, user_text) or "I couldn't generate a response."
     except LLMError as e:
         user_msg.delete()
-        return JsonResponse({"ok": False, "error": str(e)}, status=429)
+        msg = str(e)
+        status = 429 if "Daily LLM limit" in msg else 502
+        return JsonResponse({"ok": False, "error": msg}, status=status)
 
-    # ✅ ถ้าถูก cancel ระหว่างรอ LLM → ไม่ save assistant และตอบว่า canceled
     if cache.get(f"chat_cancel:{conv.id}:{rid}"):
         # ทางเลือก: ลบ user message ที่เพิ่งสร้างด้วย
         user_msg.delete()

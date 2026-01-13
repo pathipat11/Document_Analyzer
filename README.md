@@ -1,186 +1,241 @@
-# Document Intake & Analysis System (Local Prototype)
+# Document Intake & Analysis System
 
 ## Overview
 
-Document Intake & Analysis System is a local-first Django web application designed to ingest, analyze, and summarize documents using a local Large Language Model (LLM) via Ollama. The system supports single-document analysis as well as multi-document *notebook-style* summaries, allowing users to upload multiple files and generate consolidated insights.
+**Document Intake & Analysis System** is a Django-based document processing and analysis platform designed to ingest, analyze, summarize, and interact with documents using **Large Language Models (LLMs)**. The system supports both **local-first development** (via Ollama) and **cloud-based inference** (via **AWS Bedrock – Claude 3.5**), making it suitable as a learning prototype that can be gradually evolved toward a production-ready architecture.
 
-The project is built as a **prototype** to explore document processing workflows, LLM integration, and system design that can be extended into a more production-ready solution.
+The application focuses on **end-to-end document workflows**:
+
+* Secure document upload and storage
+* Text extraction and metadata analysis
+* AI-powered summarization and classification
+* Notebook-style multi-document analysis
+* Real-time, cancelable chat with streaming responses
+
+The project emphasizes **clean service separation**, **bounded context**, and **LLM-safe patterns** such as rate limiting, streaming, and cancellation.
 
 ---
 
 ## Key Features
 
-### Document Management
+### 1. Document Management
 
-* User authentication (login/register)
-* Upload one or multiple documents at once
-* Supported file types: `.txt`, `.csv`, `.pdf`, `.docx`
-* File validation:
+* User authentication (Django auth)
+* Upload **single or multiple documents**
+* Supported formats:
 
-  * Maximum files per upload
+  * `.txt`, `.csv`, `.pdf` (text-based), `.docx`
+* Upload validation:
+
+  * Maximum number of files per request
   * Maximum total upload size
   * Maximum size per file
-* Documents are private to each user
+* Documents are **private per user** (ownership enforced at query level)
+* Safe delete:
 
-### Text Processing & Analysis
-
-* Text extraction per file type
-* Automatic word count and character count
-* Document type classification (e.g. invoice, report, research, proposal, resume, etc.)
-* Short document summary (2–3 sentences)
-* Summary language automatically matches the source document language (Thai / English)
-
-### Notebook-Style Combined Summary
-
-* Upload multiple files and automatically create a combined summary (optional toggle)
-* Manually select existing documents to create a combined summary
-* Combined summary uses a map-reduce approach:
-
-  * Per-document summaries
-  * Consolidated summary across documents
-* AI-generated notebook title based on document content
-* View combined summaries separately from individual documents
-
-### Chat Q&A (Streaming + Cancel)
-
-* Chat with a **single document** or a **notebook** (combined summary)
-* **Streaming responses (SSE)** for ChatGPT-like UX (tokens appear as they are generated)
-* **Single send/cancel button** (Send ↔ Cancel)
-* Client-side abort via **AbortController**
-* Server-side cancel flag to stop generation early and avoid saving partial assistant messages
-* Recent chat history is included (limited turns) to keep context relevant and bounded
-
-### Document List UX (Pagination + Safe Delete)
-
-* Document list pagination (**10 items per page**)
-* Filter by document type (works together with pagination)
-* Delete documents from the list
-
-  * Deletes the uploaded file from storage and the DB record
-  * Redirects back to the same filter + page after deletion
-  * UI prevents deleting a document that is currently selected for combining
-
-### User Interface
-
-* Clean UI built with Tailwind CSS
-* Light / Dark theme toggle (saved in browser)
-* Toast notifications for actions (upload, logout, errors)
-* Document list with filters and selection
-
-### Data Export & Admin
-
-* Export document metadata as CSV
-* Django Admin customization for document inspection
+  * Removes file from storage
+  * Deletes DB record
+  * Preserves pagination + filters after deletion
 
 ---
 
-## How to Use
+### 2. Text Extraction & Metadata Analysis
 
-### 1. Login / Register
+For each uploaded document:
 
-* Create a user account or log in with an existing account
-* Each user can only see and manage their own documents and notebooks
+* Text extraction by file type
+* Automatic metadata calculation:
 
-### 2. Upload Documents
+  * Word count
+  * Character count
+* Extracted text is stored for downstream processing
 
-* Navigate to **Upload** from the top navigation bar
-* Select one or multiple files (`.txt`, `.csv`, `.pdf`, `.docx`)
-* Review upload limits shown on the page (file count and size)
-* Optionally enable **Auto-combine and summarize** to create a notebook immediately when uploading multiple files
-* Click **Upload** and wait for processing to complete
+> PDFs are supported only if they contain extractable text (OCR is intentionally excluded in this prototype).
 
-### 3. View Documents
+---
 
-* After upload, you will be redirected to:
+### 3. AI-Powered Analysis
 
-  * **Document Detail** (single file upload), or
-  * **Document List** (multiple files)
-* Each document shows:
+#### 3.1 Document Summarization
 
-  * Extracted metadata (word count, character count)
-  * Detected document type
-  * Short AI-generated summary
+* Short, concise summary (2–3 sentences)
+* Summary language automatically matches the document language:
 
-### 4. Create a Combined (Notebook) Summary
+  * Thai / English
+* Designed to be fast and cost-aware
 
-There are two ways to create a notebook-style summary:
+#### 3.2 Document Classification
 
-**Option A: Auto-combine during upload**
+* Automatic classification into predefined types:
 
-* Upload multiple files
-* Enable the auto-combine toggle
-* The system will automatically:
+  * `invoice`, `announcement`, `policy`, `proposal`, `report`, `research`, `resume`, `other`
+* Strict single-label output enforced at prompt level
+* Used for filtering and organization in the UI
 
-  * Generate summaries per document
-  * Create a notebook title
-  * Produce a consolidated summary
+---
 
-**Option B: Manual combine from document list**
+### 4. Notebook-Style Combined Summary (Map–Reduce)
 
-* Go to **Documents**
-* Select at least two documents using the checkboxes
-* Click **Combine & Summarize**
-* A new notebook summary will be created
+The system supports **multi-document analysis** via a *notebook* abstraction.
 
-### 5. Chat with a Document / Notebook
+#### Creation Options
 
-* Open a **Document** detail page or a **Combined** notebook page
-* Click **Chat**
-* Ask questions about the selected context
+* **Auto-combine on upload** (when uploading multiple files)
+* **Manual combine** from the document list
 
-While the assistant responds:
+#### Processing Strategy
 
-* Tokens will stream into the chat bubble in real time
-* The **Send** button turns into **Cancel**
-* Cancel stops the response early (client abort + server cancel)
+* **Map step**: generate summaries for each document
+* **Reduce step**:
 
-### 6. View Combined Summaries
+  * Generate a consolidated summary across all documents
+  * Produce an AI-generated notebook title
 
-* Navigate to **Combined** from the top menu
-* Each combined summary displays:
+Each notebook contains:
 
-  * AI-generated notebook title
-  * Consolidated summary across documents
-  * List of source documents used
+* Title
+* Combined summary
+* Linked source documents
+* Aggregate metadata (document count, total words)
 
-### 7. Export Data
+---
 
-* From the document list, use **Export CSV** to download document metadata
-* Filters applied in the UI will be reflected in the exported file
+### 5. Chat Q&A (Document & Notebook)
+
+Users can chat with:
+
+* A **single document**, or
+* A **notebook (combined summary)**
+
+#### Core Capabilities
+
+* Context-aware Q&A using extracted text and summaries
+* Retrieval-augmented prompting for documents (top relevant chunks)
+* Conversation history included (bounded by recent turns)
+
+#### Streaming + Cancel (ChatGPT-like UX)
+
+* **Server-Sent Events (SSE)** token streaming
+* Tokens appear in real time
+* Single button UX:
+
+  * `Send` → `Cancel`
+* Dual cancellation mechanism:
+
+  * Client-side abort (`AbortController`)
+  * Server-side cancel flag (prevents saving partial responses)
+
+This ensures:
+
+* Lower perceived latency
+* No wasted tokens
+* No partial assistant messages saved
+
+---
+
+### 6. LLM Architecture (Local + Cloud)
+
+The system abstracts LLM usage behind a dedicated service layer.
+
+#### Supported Providers
+
+* **Ollama (local-first)**
+
+  * Used for development and experimentation
+* **AWS Bedrock (Claude 3.5 Haiku via Inference Profile ARN)**
+
+  * Production-style managed inference
+  * Supports streaming responses
+
+Switching providers is controlled via environment variables:
+
+```env
+LLM_PROVIDER=bedrock  # or ollama
+```
+
+#### Unified LLM Client
+
+* `generate_text(...)` – synchronous responses
+* `generate_text_stream(...)` – streaming responses
+* Centralized logging via `LLMCallLog`
+* Consistent interface across providers
+
+---
+
+### 7. Guardrails & Cost Control
+
+To prevent runaway usage and control costs:
+
+* **Daily per-user LLM quota**
+
+  * Enforced at service level
+  * Checked before each request
+* Unified guardrail logic shared by:
+
+  * Chat
+  * Summarization
+  * Classification
+
+When the limit is reached:
+
+* API returns `429`
+* UI displays a clear, user-friendly message
+
+---
+
+### 8. Storage Abstraction (Local → Cloud Ready)
+
+* Uses Django’s storage abstraction (`FileField` + storage backend)
+* Designed to migrate from:
+
+  * Local filesystem (`MEDIA_ROOT`)
+  * → **Amazon S3** (planned)
+
+Key design choices:
+
+* File access via storage streams (not `.path`)
+* Compatible with private S3 buckets
+* Ready for pre-signed download URLs
+
+---
+
+### 9. User Interface & UX
+
+* Built with **Django Templates + Tailwind CSS**
+* Light / Dark mode toggle (persisted in browser)
+* Responsive layout
+* Toast notifications for:
+
+  * Upload success/failure
+  * Delete actions
+  * LLM errors
+* Paginated document list (10 items per page)
+* Type-based filtering (works with pagination)
 
 ---
 
 ## Architecture
 
-### Application Structure
+### High-Level Structure
 
-* `documents/views.py`
+```
+documents/
+├── views.py            # HTTP endpoints & access control
+├── models.py           # Document, Notebook, Conversation, Message
+├── services/
+│   ├── upload/          # Validation & limits
+│   ├── pipeline/        # Orchestration (extract → analyze → save)
+│   ├── analysis/        # Summarizer, classifier, language detection
+│   ├── chat/            # Context building & chat logic
+│   ├── llm/             # LLM client, guardrails, logging
+│   └── storage/         # File organization (optional)
+```
 
-  * HTTP request handling
-  * Authentication and access control
-  * Upload, list, detail, combine workflows
-  * Chat endpoints: JSON API and SSE streaming
-  * Delete endpoint
+The architecture keeps:
 
-* `documents/models.py`
-
-  * `Document`: individual uploaded document
-  * `CombinedSummary`: notebook-style summary created from multiple documents
-  * `Conversation` / `Message`: persistent chat history per document/notebook
-
-* `documents/services/`
-
-  * `text_extractor.py`: extract text from different file formats
-  * `processor.py`: orchestrates extraction, analysis, and LLM calls
-  * `llm_client.py`: wrapper for local Ollama model
-  * `summarizer.py`: per-document summarization
-  * `classifier.py`: document type classification
-  * `combined_summarizer.py`: multi-document map-reduce summarization
-  * `title_generator.py`: AI-generated notebook titles
-  * `lang_detect.py`: simple language detection (Thai / English)
-  * `chat_service.py`: builds context + history and generates answers (sync + streaming)
-
-This separation keeps views thin and business logic reusable and testable.
+* Views thin
+* Business logic testable
+* LLM usage isolated and auditable
 
 ---
 
@@ -188,198 +243,48 @@ This separation keeps views thin and business logic reusable and testable.
 
 ### Single Document
 
-Upload → Validate → Save File → Extract Text → Compute Metadata → LLM Summary & Type → Save → Detail View
+Upload → Validate → Save File → Extract Text → Metadata → LLM Summary & Type → Persist → Detail View
 
-### Multiple Documents (Notebook Style)
+### Notebook (Multiple Documents)
 
-Upload Multiple Files → Validate → Save Files → Extract & Summarize Each → Generate Notebook Title → Create Combined Summary → Notebook Detail View
+Upload / Select → Per-Doc Summaries → AI Title → Consolidated Summary → Notebook View
 
 ### Chat (Streaming)
 
-Open chat → Send message → Create user message → Stream assistant tokens via SSE → Save final assistant message (unless canceled)
-
-### Mermaid Flow Diagram
-
-```mermaid
-flowchart TD
-  A[User uploads document(s)] --> B{Validate}
-  B -->|Fail| B1[Show error toast]
-  B -->|Pass| C[Save file(s) to media/]
-
-  C --> D[Create Document row(s) in DB
-(owner, metadata)]
-  D --> E[Extract text
-(txt/csv/pdf/docx)]
-  E --> F[Compute word_count & char_count]
-
-  F --> G{LLM enabled?}
-  G -->|No| H[Save extracted_text + counts]
-  G -->|Yes| I[Generate summary
-(Thai/English auto)]
-  I --> J[Classify document_type]
-  J --> H[Save extracted_text + counts + summary + type]
-
-  H --> K{Multiple files & auto-combine?}
-  K -->|No| L{Single file?}
-  L -->|Yes| M[Redirect: Document detail]
-  L -->|No| N[Redirect: Document list]
-
-  K -->|Yes| O[Map: use per-document summaries]
-  O --> P[AI generate notebook title]
-  P --> Q[Reduce: consolidated summary
-(4-6 bullets)]
-  Q --> R[Create CombinedSummary + link documents]
-  R --> S[Redirect: Combined summary detail]
-
-  %% Chat
-  T[User opens chat] --> U[Send message]
-  U --> V[Create user Message row]
-  V --> W[Stream assistant tokens via SSE]
-  W --> X{Canceled?}
-  X -->|Yes| Y[Stop + do not save assistant]
-  X -->|No| Z[Save final assistant Message]
-```
+Open Chat → Send Message → Save User Message → Stream Tokens → Save Final Assistant Message (unless canceled)
 
 ---
 
 ## Tech Stack
 
 * **Backend:** Python, Django
-* **Database:** PostgreSQL (local)
-* **LLM:** Ollama (local model, e.g. `llama3`)
-* **Frontend:** Django Templates + Tailwind CSS
+* **Database:** PostgreSQL
+* **LLM Providers:**
+
+  * Ollama (local)
+  * AWS Bedrock (Claude 3.5)
+* **Frontend:** Django Templates, Tailwind CSS
+* **Streaming:** Server-Sent Events (SSE)
 * **Auth:** Django Authentication System
-
----
-
-## Local Setup
-
-### Prerequisites
-
-* Python 3.11+ (recommended)
-* PostgreSQL (local)
-* Ollama installed and running
-
-### 1) Clone the project
-
-```bash
-git clone <your-repo-url>
-cd document_analyzer
-```
-
-### 2) Create & activate a virtual environment
-
-```bash
-python -m venv .venv
-# macOS / Linux
-source .venv/bin/activate
-# Windows (PowerShell)
-# .venv/Scripts/Activate.ps1
-```
-
-### 3) Install dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 4) Configure environment variables
-
-Create a `.env` file in the project root (same level as `manage.py`). Example:
-
-```dotenv
-DJANGO_SECRET_KEY=change-me
-DJANGO_DEBUG=1
-
-DB_NAME=document_analyzer
-DB_USER=postgres
-DB_PASSWORD=postgres
-DB_HOST=127.0.0.1
-DB_PORT=5432
-
-MAX_UPLOAD_SIZE=5242880
-ALLOWED_EXTENSIONS=txt,csv,pdf,docx
-
-OLLAMA_HOST=http://localhost:11434
-OLLAMA_MODEL=llama3
-ENABLE_LLM=1
-```
-
-### 5) Create the database (PostgreSQL)
-
-Create a local database named `document_analyzer` (adjust to match `.env`).
-
-```bash
-createdb document_analyzer
-```
-
-If you prefer psql:
-
-```bash
-psql -U postgres -c "CREATE DATABASE document_analyzer;"
-```
-
-### 6) Run migrations
-
-```bash
-python manage.py migrate
-```
-
-### 7) Create an admin user (optional)
-
-```bash
-python manage.py createsuperuser
-```
-
-### 8) Ensure Ollama is running and pull a model
-
-Start Ollama, then pull the model configured in `.env`:
-
-```bash
-ollama pull llama3
-```
-
-(If you change models, update `OLLAMA_MODEL` accordingly.)
-
-### 9) Run the development server
-
-```bash
-python manage.py runserver
-```
-
-Open the app:
-
-* [http://127.0.0.1:8000/](http://127.0.0.1:8000/)
-
-Admin (optional):
-
-* [http://127.0.0.1:8000/admin/](http://127.0.0.1:8000/admin/)
-
-### Troubleshooting
-
-* **Database connection error**: verify `DB_*` in `.env`, confirm PostgreSQL is running, and the database exists.
-* **Ollama not responding**: confirm Ollama is running at `OLLAMA_HOST` and the model is pulled.
-* **PDF produces empty text**: the PDF may be scanned/image-based; OCR is not included in this prototype.
-* **Large uploads feel slow**: processing is synchronous in this prototype; consider background jobs as a next step.
-* **Streaming not updating**: ensure the chat stream endpoint returns `text/event-stream` and proxy buffering is disabled (`X-Accel-Buffering: no` for Nginx).
 
 ---
 
 ## Limitations
 
-* PDF extraction supports text-based PDFs only (no OCR for scanned documents)
-* LLM output quality depends on the local model and hardware
-* Processing is synchronous; large uploads may take time
-* Designed as a prototype, not optimized for high concurrency
+* No OCR for scanned PDFs
+* Synchronous processing (no background workers)
+* Designed for low-to-moderate concurrency
+* Prototype-level security hardening
 
 ---
 
 ## Future Improvements
 
-* Background processing (Celery / task queue)
-* Embedding-based retrieval for large document sets
-* Export combined summaries as Markdown or text
-* Role-based access control (teams/shared notebooks)
-* Usage metrics and rate limiting
+* Background jobs (Celery / RQ)
+* Embedding-based semantic retrieval
+* Amazon S3 + CloudFront integration
+* Team-based notebooks and sharing
+* Advanced usage analytics
+* Fine-grained role-based access control
 
----
+
