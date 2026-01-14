@@ -1,6 +1,8 @@
-from __future__ import annotations
+import logging
 from documents.services.llm.client import generate_text, LLMError
 from .lang_detect import detect_language
+
+logger = logging.getLogger(__name__)
 
 def summarize_text(text: str, *, owner=None) -> str:
     clean = (text or "").strip()
@@ -25,8 +27,10 @@ DOCUMENT:
 """
     try:
         return (generate_text(system, user, owner=owner, purpose="summarize") or "").strip()
-    except LLMError:
-        return ""
+    except LLMError as e:
+        logger.exception("LLM summarize failed: %s", e)
+        raise
+
 
 def _trim_for_summary(text: str, max_chars: int = 12000) -> str:
     if len(text) <= max_chars:

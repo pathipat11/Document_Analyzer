@@ -185,9 +185,6 @@ def generate_text_stream(system: str, user: str, *, owner=None, purpose="") -> I
     prov = _provider()
     
     _enforce_daily_limit(owner)
-    
-    if owner and getattr(owner, "id", None):
-        incr_daily_limit(owner.id)
 
     # ---- Bedrock streaming ----
     if prov == "bedrock":
@@ -239,6 +236,10 @@ def generate_text_stream(system: str, user: str, *, owner=None, purpose="") -> I
                 # Some SDKs emit "content_block_start" / "content_block_stop" / "message_stop"
                 # We can ignore non-text events.
 
+                if owner and getattr(owner, "id", None):
+                    incr_daily_limit(owner.id)
+                return
+
             return
 
         except Exception as e:
@@ -260,6 +261,9 @@ def generate_text_stream(system: str, user: str, *, owner=None, purpose="") -> I
             chunk = (part.get("message", {}) or {}).get("content") or ""
             if chunk:
                 yield chunk
+                
+            if owner and getattr(owner, "id", None):
+                incr_daily_limit(owner.id)
     except Exception as e:
         raise LLMError(str(e)) from e
 

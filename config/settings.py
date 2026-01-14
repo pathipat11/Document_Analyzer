@@ -31,6 +31,7 @@ ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 INSTALLED_APPS = [
     'accounts',
     'documents',
+    'storages',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -109,7 +110,8 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+# TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Bangkok'
 
 USE_I18N = True
 
@@ -123,7 +125,7 @@ STATIC_URL = 'static/'
 
 STATICFILES_DIRS = [BASE_DIR / "static"]
 
-MEDIA_URL = "/media/"
+# MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 # (optional) ค่าพื้นฐานสำหรับ validation
@@ -146,6 +148,33 @@ BEDROCK_MAX_TOKENS = int(os.getenv("BEDROCK_MAX_TOKENS", "800"))
 BEDROCK_TEMPERATURE = float(os.getenv("BEDROCK_TEMPERATURE", "0.2"))
 
 LLM_DAILY_CALL_LIMIT = int(os.getenv("LLM_DAILY_CALL_LIMIT", "200"))
+
+AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME", "")
+AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME", "ap-southeast-1")
+
+# แนะนำ: ไม่ให้ public
+AWS_DEFAULT_ACL = None
+AWS_QUERYSTRING_AUTH = True
+
+# ปรับตามที่อยากเก็บ path
+# AWS_LOCATION = ""
+
+# ใช้ S3 เป็น default storage (Django 4.2+)
+STORAGES = {
+    "default": {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": {
+            "bucket_name": AWS_STORAGE_BUCKET_NAME,
+            # "location": AWS_LOCATION,
+        },
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
+
+MEDIA_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/"
+
 
 # Default primary key field type
 LOGGING = {

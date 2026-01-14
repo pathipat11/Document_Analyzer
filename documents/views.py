@@ -1,6 +1,7 @@
-import csv, json
+import csv, json, boto3, re
 from pathlib import Path
 from django.urls import reverse
+from django.conf import settings
 from django.shortcuts import render, redirect, get_object_or_404
 from django.core.cache import cache
 from django.contrib import messages
@@ -11,7 +12,7 @@ from django.http import JsonResponse, HttpResponse, StreamingHttpResponse
 from django.core.paginator import Paginator
 from django.utils import timezone
 from django.db.models import Q, Exists, OuterRef
-from urllib.parse import urlencode
+from urllib.parse import urlencode, quote
 
 from documents.services.upload.upload_validation import validate_files, get_limits
 from documents.services.analysis.combined_summarizer import build_combined_summary, build_combined_title_and_summary
@@ -148,6 +149,50 @@ def reprocess_document(request, pk: int):
     doc = get_object_or_404(Document, pk=pk, owner=request.user)
     process_document(doc)
     return redirect("documents:detail", pk=doc.pk)
+
+def _ascii_filename_fallback(name: str) -> str:
+    """
+    ทำชื่อไฟล์ให้เป็น ASCII ปลอดภัยสำหรับ header
+    เช่น "AUCC2026____.pdf" ถ้าไทยเยอะ
+    """
+    name = (name or "").strip()
+    # กันตัวอักษรอันตรายใน header
+    name = name.replace('"', "").replace("\\", "").replace("\n", "").replace("\r", "")
+    # แทน non-ascii เป็น _
+    safe = re.sub(r"[^\x20-\x7E]", "_", name)  # ASCII printable
+    safe = re.sub(r"\s+", " ", safe).strip()
+    return safe or "download"
+
+def _content_disposition_inline(filename: str) -> str:
+    ascii_name = _ascii_filename_fallback(filename)
+    utf8_name = quote(filename, safe="")  # percent-encode UTF-8
+    # RFC 5987
+    return f'inline; filename="{ascii_name}"; filename*=UTF-8\'\'{utf8_name}'
+
+@login_required
+def document_file(request, pk: int):
+    doc = get_object_or_404(Document, pk=pk, owner=request.user)
+
+    # doc.file.name = path แบบ relative ต่อ storage (ไม่มี "media/")
+    key = doc.file.name
+    # location = (getattr(settings, "AWS_LOCATION", "") or "").strip("/")
+
+    # if location:
+    #     key = f"{location}/{key.lstrip('/')}"
+
+    s3 = boto3.client("s3", region_name=settings.AWS_S3_REGION_NAME)
+
+    url = s3.generate_presigned_url(
+        ClientMethod="get_object",
+        Params={
+            "Bucket": settings.AWS_STORAGE_BUCKET_NAME,
+            "Key": key,
+            "ResponseContentDisposition": _content_disposition_inline(doc.file_name),
+            "ResponseContentType": doc.mime_type or "application/octet-stream",
+        },
+        ExpiresIn=60,
+    )
+    return redirect(url)
 
 @login_required
 def export_documents_csv(request):

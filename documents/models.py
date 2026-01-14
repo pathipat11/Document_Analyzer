@@ -2,9 +2,14 @@ import os
 from django.conf import settings
 from django.db import models
 from django.core.exceptions import ValidationError
+from django.utils.timezone import now
 
 def upload_to_document(instance, filename):
-    return os.path.join("documents", str(instance.owner_id), filename)
+    owner_id = instance.owner_id or "anon"
+    y = now().strftime("%Y")
+    m = now().strftime("%m")
+    return os.path.join("incoming", f"user_{owner_id}", y, m, filename)
+
 
 class Document(models.Model):
     owner = models.ForeignKey(
@@ -15,7 +20,7 @@ class Document(models.Model):
         blank=True,
     )
     
-    file = models.FileField(upload_to="documents/")
+    file = models.FileField(upload_to=upload_to_document)
     file_name = models.CharField(max_length=255)
     file_ext = models.CharField(max_length=20, blank=True)
     mime_type = models.CharField(max_length=100, blank=True)

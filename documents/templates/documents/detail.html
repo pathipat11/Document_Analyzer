@@ -37,7 +37,9 @@
         </dl>
 
         <div class="mt-5 flex flex-wrap gap-2">
-            <a class="btn-outline" href="{{ doc.file.url }}">Download</a>
+            <a class="btn-outline" href="{% url 'documents:file' doc.pk %}" target="_blank" rel="noopener">
+                View File
+            </a>
             <a class="btn-outline" href="{% url 'documents:reprocess' doc.pk %}">Reprocess</a>
             <a class="btn" href="{% url 'documents:chat_document' doc.pk %}">Chat about this document</a>
         </div>
@@ -47,10 +49,28 @@
         <div class="card p-6">
             <h2 class="text-lg font-semibold">Summary</h2>
             <p class="mt-3 text-sm leading-relaxed text-slate-700 dark:text-slate-200">
-                {{ doc.summary|default:"(summary not available)" }}
+                {% if doc.summary %}
+                {{ doc.summary }}
+                {% else %}
+                (summary not available)
+                {% endif %}
+
             </p>
         </div>
 
+        <div class="card p-6">
+            <h2 class="text-lg font-semibold">Status</h2>
+        
+            <div class="mt-2 text-sm">
+                <div><span class="text-slate-500">Status:</span> <span class="font-medium">{{ doc.status }}</span></div>
+        
+                {% if doc.error %}
+                <div class="mt-2 rounded-lg bg-red-50 p-3 text-red-700 dark:bg-red-950/40 dark:text-red-200">
+                    {{ doc.error }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
         <div class="card p-6">
             <h2 class="text-lg font-semibold">Preview</h2>
             <pre

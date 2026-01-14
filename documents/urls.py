@@ -11,6 +11,8 @@ urlpatterns = [
     path("documents/<int:pk>/", views.document_detail, name="detail"),
     path("documents/<int:pk>/delete/", views.delete_document, name="delete"),
     path("documents/<int:pk>/reprocess/", views.reprocess_document, name="reprocess"),
+    path("documents/<int:pk>/file/", views.document_file, name="file"),
+
 
     path("export/csv/", views.export_documents_csv, name="export_csv"),
 

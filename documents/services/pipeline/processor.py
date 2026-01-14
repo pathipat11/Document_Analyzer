@@ -6,7 +6,7 @@ from django.utils import timezone
 import logging
 
 from documents.models import Document
-from .text_extractor import extract_text
+from .text_extractor import extract_text, extract_text_bytes
 from documents.services.analysis.summarizer import summarize_text
 from documents.services.analysis.classifier import classify_text
 from documents.services.storage.file_organizer import move_document_file_to_type_folder
@@ -22,7 +22,10 @@ def process_document(doc: Document) -> Document:
     doc.save(update_fields=["status", "error"])
 
     try:
-        res = extract_text(doc.file.path, doc.file_ext)
+        with doc.file.open("rb") as f:
+            file_bytes = f.read()
+
+        res = extract_text_bytes(file_bytes, doc.file_ext)
         doc.extracted_text = res.text
         doc.word_count = res.word_count
         doc.char_count = res.char_count
@@ -36,15 +39,31 @@ def process_document(doc: Document) -> Document:
         ])
 
         if getattr(settings, "ENABLE_LLM", True) and res.text.strip():
-            doc.summary = summarize_text(res.text, owner=doc.owner)
-            doc.document_type = classify_text(res.text, owner=doc.owner)
+            try:
+                s = summarize_text(res.text, owner=doc.owner)
+                if s:  # ได้ summary จริงค่อยทับ
+                    doc.summary = s
+
+                t = classify_text(res.text, owner=doc.owner)
+                if t:
+                    doc.document_type = t
+
+            except Exception as e:
+                logger.exception("LLM step failed: %s", e)
+                doc.error = f"LLM failed: {e}"
+
 
         doc.status = "done"
         doc.processed_at = timezone.now()
-        doc.save(update_fields=[
-            "extracted_text","word_count","char_count",
-            "summary","document_type","status","processed_at"
-        ])
+
+        fields = ["extracted_text","word_count","char_count","status","processed_at","error"]
+
+        if doc.summary:
+            fields.append("summary")
+        if doc.document_type:
+            fields.append("document_type")
+
+        doc.save(update_fields=fields)
 
         move_document_file_to_type_folder(doc)
         return doc
