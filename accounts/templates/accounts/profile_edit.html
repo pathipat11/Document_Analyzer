@@ -150,27 +150,37 @@
             <button class="btn" type="submit">Save changes</button>
             <a class="btn-outline" href="{% url 'accounts:profile' %}">Cancel</a>
         </div>
-        <div
-            class="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
-            <div class="font-semibold">Danger Zone</div>
-            <p class="mt-1 text-sm opacity-90">Deactivating disables login. Deleting will remove your documents
-                permanently.</p>
-
-            <div class="mt-3 flex flex-wrap gap-2">
-                <form method="post" action="{% url 'accounts:deactivate' %}">
-                    {% csrf_token %}
-                    <button class="btn-outline" type="submit">Deactivate account</button>
-                </form>
-
-                <form method="post" action="{% url 'accounts:delete' %}"
-                    onsubmit="return confirm('Delete account permanently? This cannot be undone.');">
-                    {% csrf_token %}
-                    <button
-                        class="btn bg-red-600 hover:bg-red-700 text-red-100 dark:bg-red-800 dark:hover:bg-red-900 dark:text-red-200"
-                        type="submit">Delete account</button>
-                </form>
-            </div>
-        </div>
     </form>
 </div>
+<details
+    class="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
+    <summary class="cursor-pointer select-none font-semibold flex items-center justify-between">
+        <span>Danger Zone</span>
+        <span class="text-xs opacity-80">Click to expand</span>
+    </summary>
+
+    <div class="mt-3">
+        <p class="text-sm opacity-90">
+            Deactivating disables login. Deleting will remove your documents permanently.
+        </p>
+
+        <div class="mt-3 flex flex-wrap gap-2">
+            <form method="post" action="{% url 'accounts:deactivate' %}"
+                onsubmit="return confirm('Deactivate account permanently? This cannot be undone.');">
+                {% csrf_token %}
+                <button class="btn-outline" type="submit">Deactivate account</button>
+            </form>
+
+            <form method="post" action="{% url 'accounts:delete' %}"
+                onsubmit="return confirm('Delete account permanently? This cannot be undone.');">
+                {% csrf_token %}
+                <button
+                    class="btn bg-red-600 hover:bg-red-700 text-red-100 dark:bg-red-800 dark:hover:bg-red-900 dark:text-red-200"
+                    type="submit">
+                    Delete account
+                </button>
+            </form>
+        </div>
+    </div>
+</details>
 {% endblock %}
