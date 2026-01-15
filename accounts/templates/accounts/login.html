@@ -11,19 +11,23 @@
 
         <div>
             <label class="block text-sm font-medium mb-1">Username</label>
-            <input type="text" name="username" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2
-                      dark:border-slate-700 dark:bg-slate-900" required />
+            {{ form.username }}
+            {% if form.username.errors %}
+            <div class="mt-1 text-xs text-red-600">{{ form.username.errors }}</div>
+            {% endif %}
         </div>
 
         <div>
             <label class="block text-sm font-medium mb-1">Password</label>
-            <input type="password" name="password" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2
-                      dark:border-slate-700 dark:bg-slate-900" required />
+            {{ form.password }}
+            {% if form.password.errors %}
+            <div class="mt-1 text-xs text-red-600">{{ form.password.errors }}</div>
+            {% endif %}
         </div>
 
-        {% if form.errors %}
+        {% if form.non_field_errors %}
         <div class="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
-            Invalid credentials. Please try again.
+            {{ form.non_field_errors }}
         </div>
         {% endif %}
 

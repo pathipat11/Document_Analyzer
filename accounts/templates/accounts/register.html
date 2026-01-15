@@ -4,32 +4,76 @@
 {% block content %}
 <div class="mx-auto max-w-md card p-6">
     <h1 class="text-xl font-semibold">Register</h1>
-    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
-        Create an account to manage your documents.
-    </p>
+    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Create an account to manage your documents.</p>
 
     <form method="post" class="mt-5 space-y-4">
         {% csrf_token %}
 
         <div>
             <label class="block text-sm font-medium mb-1">Username</label>
-            <input type="text" name="username" required class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900" />
+            {{ form.username }}
+            {% if form.username.errors %}<div class="mt-1 text-xs text-red-600">{{ form.username.errors }}</div>
+            {% endif %}
+        </div>
+
+        <div>
+            <label class="block text-sm font-medium mb-1">Email</label>
+            {{ form.email }}
+            {% if form.email.errors %}<div class="mt-1 text-xs text-red-600">{{ form.email.errors }}</div>{% endif %}
+        </div>
+
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+                <label class="block text-sm font-medium mb-1">First name</label>
+                {{ form.first_name }}
+                {% if form.first_name.errors %}<div class="mt-1 text-xs text-red-600">{{ form.first_name.errors }}</div>
+                {% endif %}
+            </div>
+            <div>
+                <label class="block text-sm font-medium mb-1">Last name</label>
+                {{ form.last_name }}
+                {% if form.last_name.errors %}<div class="mt-1 text-xs text-red-600">{{ form.last_name.errors }}</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div>
+            <label class="block text-sm font-medium mb-1">Phone (optional)</label>
+            {{ form.phone }}
+            {% if form.phone.errors %}<div class="mt-1 text-xs text-red-600">{{ form.phone.errors }}</div>{% endif %}
+        </div>
+
+        <div>
+            <label class="block text-sm font-medium mb-1">Organization (optional)</label>
+            {{ form.organization }}
+            {% if form.organization.errors %}<div class="mt-1 text-xs text-red-600">{{ form.organization.errors }}</div>
+            {% endif %}
+        </div>
+
+        <div>
+            <label class="block text-sm font-medium mb-1">Job title (optional)</label>
+            {{ form.job_title }}
+            {% if form.job_title.errors %}<div class="mt-1 text-xs text-red-600">{{ form.job_title.errors }}</div>
+            {% endif %}
         </div>
 
         <div>
             <label class="block text-sm font-medium mb-1">Password</label>
-            <input type="password" name="password1" required class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900" />
+            {{ form.password1 }}
+            {% if form.password1.errors %}<div class="mt-1 text-xs text-red-600">{{ form.password1.errors }}</div>
+            {% endif %}
         </div>
 
         <div>
             <label class="block text-sm font-medium mb-1">Confirm password</label>
-            <input type="password" name="password2" required class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900" />
+            {{ form.password2 }}
+            {% if form.password2.errors %}<div class="mt-1 text-xs text-red-600">{{ form.password2.errors }}</div>
+            {% endif %}
         </div>
 
-        {% if form.errors %}
-        <div class="rounded-lg bg-red-50 p-3 text-sm text-red-700
-                    dark:bg-red-950 dark:text-red-300">
-            {{ form.errors }}
+        {% if form.non_field_errors %}
+        <div class="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+            {{ form.non_field_errors }}
         </div>
         {% endif %}
 
@@ -38,9 +82,7 @@
 
     <p class="mt-4 text-sm text-slate-500 dark:text-slate-400">
         Already have an account?
-        <a class="text-blue-700 hover:underline dark:text-blue-300" href="{% url 'accounts:login' %}">
-            Login
-        </a>
+        <a class="text-blue-700 hover:underline dark:text-blue-300" href="{% url 'accounts:login' %}">Login</a>
     </p>
 </div>
 {% endblock %}

@@ -1,0 +1,96 @@
+{% extends "documents/base.html" %}
+{% block title %}Profile · Document Analyzer{% endblock %}
+
+{% block content %}
+<div class="card p-6">
+    <div class="flex items-center justify-between gap-4">
+        <div>
+            <h1 class="text-xl font-semibold">My Profile</h1>
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Manage your personal information.</p>
+        </div>
+        <a class="btn" href="{% url 'accounts:profile_edit' %}">Edit</a>
+        <!-- <div class="mt-4 flex flex-wrap justify-center gap-2">
+            <a class="btn" href="{% url 'accounts:profile_edit' %}">Edit</a>
+            <a class="btn-outline" href="{% url 'accounts:password_change' %}">Change password</a>
+        </div> -->
+    </div>
+
+    <div class="flex flex-col items-center text-center">
+        {% with p=request.user.profile %}
+        {% if p.avatar %}
+        <img src="{{ p.avatar.url }}" alt="Avatar"
+            class="h-24 w-24 rounded-full object-cover ring-2 ring-slate-200 dark:ring-slate-800" />
+        {% else %}
+        <div
+            class="h-24 w-24 rounded-full bg-slate-200 dark:bg-slate-700 grid place-items-center
+                            text-2xl font-semibold text-slate-700 dark:text-slate-100 ring-2 ring-slate-200 dark:ring-slate-800">
+            {{ request.user.username|slice:":1"|upper }}
+        </div>
+        {% endif %}
+        {% endwith %}
+    </div>
+
+    <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 text-sm">
+        <div class="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+            <div class="text-xs text-slate-500 dark:text-slate-400">Username</div>
+            <div class="mt-1 font-medium">{{ request.user.username }}</div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+            <div class="text-xs text-slate-500 dark:text-slate-400">Email</div>
+            <div class="mt-1 font-medium">{{ request.user.email|default:"-" }}</div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+            <div class="text-xs text-slate-500 dark:text-slate-400">First name</div>
+            <div class="mt-1 font-medium">{{ request.user.first_name|default:"-" }}</div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+            <div class="text-xs text-slate-500 dark:text-slate-400">Last name</div>
+            <div class="mt-1 font-medium">{{ request.user.last_name|default:"-" }}</div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+            <div class="text-xs text-slate-500 dark:text-slate-400">Phone</div>
+            <div class="mt-1 font-medium">{{ request.user.profile.phone|default:"-" }}</div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+            <div class="text-xs text-slate-500 dark:text-slate-400">Organization</div>
+            <div class="mt-1 font-medium">{{ request.user.profile.organization|default:"-" }}</div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 p-4 dark:border-slate-800 sm:col-span-2">
+            <div class="text-xs text-slate-500 dark:text-slate-400">Bio</div>
+            <div class="mt-1">{{ request.user.profile.bio|default:"-" }}</div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 p-4 dark:border-slate-800 sm:col-span-2">
+            <div class="text-xs text-slate-500 dark:text-slate-400">Address</div>
+            <div class="mt-1">
+                {% with p=request.user.profile %}
+                {{ p.address_line1|default:"" }} {{ p.address_line2|default:"" }}<br />
+                {{ p.city|default:"" }} {{ p.state|default:"" }} {{ p.postal_code|default:"" }}<br />
+                {{ p.country|default:"-" }}
+                {% endwith %}
+            </div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+            <div class="text-xs text-slate-500 dark:text-slate-400">Date of birth</div>
+            <div class="mt-1 font-medium">{{ request.user.profile.date_of_birth|default:"-" }}</div>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+            <div class="text-xs text-slate-500 dark:text-slate-400">Notifications</div>
+            <div class="mt-2 space-y-1 text-sm">
+                <div>Email: <b>{{ request.user.profile.notify_email }}</b></div>
+                <div>Product: <b>{{ request.user.profile.notify_product }}</b></div>
+                <div>Security: <b>{{ request.user.profile.notify_security }}</b></div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
