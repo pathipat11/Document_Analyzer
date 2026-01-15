@@ -179,18 +179,17 @@ def generate_text(system: str, user: str, *, owner=None, purpose="") -> str:
 
 
 def generate_text_stream(system: str, user: str, *, owner=None, purpose="") -> Iterator[str]:
-    """
-    Stream tokens/chunks. For Bedrock Claude 3, use invoke_model_with_response_stream.
-    """
     prov = _provider()
-    
+
     _enforce_daily_limit(owner)
 
     # ---- Bedrock streaming ----
     if prov == "bedrock":
+        t0 = time.time()
+        model_id = _bedrock_model_id()
+
         try:
             client = _bedrock_runtime()
-            model_id = _bedrock_model_id()
             max_tokens = int(getattr(settings, "BEDROCK_MAX_TOKENS", 800))
             temperature = float(getattr(settings, "BEDROCK_TEMPERATURE", 0.2))
 
@@ -207,7 +206,8 @@ def generate_text_stream(system: str, user: str, *, owner=None, purpose="") -> I
             if not stream:
                 return
 
-            # Bedrock event stream: each event has chunk bytes containing json
+            emitted_any = False
+
             for event in stream:
                 chunk = event.get("chunk")
                 if not chunk:
@@ -221,9 +221,6 @@ def generate_text_stream(system: str, user: str, *, owner=None, purpose="") -> I
                 except Exception:
                     continue
 
-                # Claude 3 streaming events typically include:
-                # - "type": "content_block_delta", delta: { "type":"text_delta", "text":"..." }
-                # - "type": "message_delta", etc.
                 t = payload.get("type")
 
                 if t == "content_block_delta":
@@ -231,18 +228,35 @@ def generate_text_stream(system: str, user: str, *, owner=None, purpose="") -> I
                     if delta.get("type") == "text_delta":
                         text = delta.get("text") or ""
                         if text:
+                            emitted_any = True
                             yield text
 
-                # Some SDKs emit "content_block_start" / "content_block_stop" / "message_stop"
-                # We can ignore non-text events.
+                if t in ("message_stop", "content_block_stop"):
+                    pass
 
-                if owner and getattr(owner, "id", None):
-                    incr_daily_limit(owner.id)
-                return
+            if owner and getattr(owner, "id", None):
+                incr_daily_limit(owner.id)
 
+            LLMCallLog.objects.create(
+                owner=owner,
+                provider="bedrock",
+                model_id=model_id,
+                purpose=purpose,
+                ok=True,
+                latency_ms=int((time.time() - t0) * 1000),
+            )
             return
 
         except Exception as e:
+            LLMCallLog.objects.create(
+                owner=owner,
+                provider="bedrock",
+                model_id=model_id,
+                purpose=purpose,
+                ok=False,
+                error=str(e),
+                latency_ms=int((time.time() - t0) * 1000),
+            )
             raise LLMError(str(e)) from e
 
     # ---- Ollama streaming (existing) ----
@@ -257,13 +271,15 @@ def generate_text_stream(system: str, user: str, *, owner=None, purpose="") -> I
             options={"temperature": 0.2},
             stream=True,
         )
+        did_incr = False
         for part in stream:
             chunk = (part.get("message", {}) or {}).get("content") or ""
             if chunk:
                 yield chunk
                 
-            if owner and getattr(owner, "id", None):
-                incr_daily_limit(owner.id)
+        if owner and getattr(owner, "id", None):
+            incr_daily_limit(owner.id)
+
     except Exception as e:
         raise LLMError(str(e)) from e
 
