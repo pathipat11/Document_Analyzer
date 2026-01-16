@@ -5,7 +5,7 @@ from typing import Any, Dict, Iterator
 from documents.models import LLMCallLog
 
 from documents.services.llm.guardrails import check_daily_limit, incr_daily_limit
-
+from documents.services.llm.token_ledger import can_spend, spend
 
 from django.conf import settings
 
@@ -59,6 +59,11 @@ def _extract_claude_text(resp_json: Dict[str, Any]) -> str:
             parts.append(b.get("text") or "")
     return ("".join(parts)).strip()
 
+def _estimate_tokens(text: str) -> int:
+    # heuristic: 1 token ~ 4 chars (คร่าว ๆ)
+    t = (text or "").strip()
+    return max(1, len(t) // 4)
+
 # -------------------------
 # Ollama client (fallback)
 # -------------------------
@@ -90,6 +95,12 @@ def generate_text(system: str, user: str, *, owner=None, purpose="") -> str:
     
     _enforce_daily_limit(owner)
 
+    # ---- precheck (token budget) ----
+    if owner and getattr(owner, "id", None):
+        est_in = _estimate_tokens((system or "") + "\n" + (user or ""))
+        if not can_spend(owner.id, purpose, est_in):
+            raise LLMError("Token budget is low or exhausted for this feature. Please try again tomorrow.")
+    
     if prov == "bedrock":
         model_id = _bedrock_model_id()
         try:
@@ -116,6 +127,9 @@ def generate_text(system: str, user: str, *, owner=None, purpose="") -> str:
             in_tok = int(usage.get("input_tokens") or 0)
             out_tok = int(usage.get("output_tokens") or 0)
 
+            if owner and getattr(owner, "id", None):
+                spend(owner.id, purpose, in_tok + out_tok)
+                
             LLMCallLog.objects.create(
                 owner=owner,
                 provider="bedrock",
@@ -151,9 +165,11 @@ def generate_text(system: str, user: str, *, owner=None, purpose="") -> str:
             options={"temperature": 0.2},
         )
         text = (resp.get("message", {}).get("content") or "").strip()
+        in_tok = _estimate_tokens((system or "") + "\n" + (user or ""))
+        out_tok = _estimate_tokens(text)
 
         if owner and getattr(owner, "id", None):
-            incr_daily_limit(owner.id)
+            spend(owner.id, purpose, in_tok + out_tok)
 
         LLMCallLog.objects.create(
             owner=owner,
@@ -162,6 +178,8 @@ def generate_text(system: str, user: str, *, owner=None, purpose="") -> str:
             purpose=purpose,
             ok=True,
             latency_ms=int((time.time() - t0) * 1000),
+            input_tokens=in_tok,
+            output_tokens=out_tok
         )
         return text
 
@@ -180,13 +198,23 @@ def generate_text(system: str, user: str, *, owner=None, purpose="") -> str:
 
 def generate_text_stream(system: str, user: str, *, owner=None, purpose="") -> Iterator[str]:
     prov = _provider()
+    t0 = time.time()
 
     _enforce_daily_limit(owner)
 
+    # ---- precheck (token budget) ----
+    if owner and getattr(owner, "id", None):
+        est_in = _estimate_tokens((system or "") + "\n" + (user or ""))
+        if not can_spend(owner.id, purpose, est_in):
+            raise LLMError("Token budget is low or exhausted for this feature. Please try again tomorrow.")
+
     # ---- Bedrock streaming ----
     if prov == "bedrock":
-        t0 = time.time()
         model_id = _bedrock_model_id()
+
+        # จะใช้ประมาณ token เพราะ stream ไม่ได้คืน usage ให้แบบตรง ๆ
+        est_in = _estimate_tokens((system or "") + "\n" + (user or ""))
+        est_out_acc = 0
 
         try:
             client = _bedrock_runtime()
@@ -205,8 +233,6 @@ def generate_text_stream(system: str, user: str, *, owner=None, purpose="") -> I
             stream = resp.get("body")
             if not stream:
                 return
-
-            emitted_any = False
 
             for event in stream:
                 chunk = event.get("chunk")
@@ -228,14 +254,12 @@ def generate_text_stream(system: str, user: str, *, owner=None, purpose="") -> I
                     if delta.get("type") == "text_delta":
                         text = delta.get("text") or ""
                         if text:
-                            emitted_any = True
+                            est_out_acc += _estimate_tokens(text)
                             yield text
-
-                if t in ("message_stop", "content_block_stop"):
-                    pass
 
             if owner and getattr(owner, "id", None):
                 incr_daily_limit(owner.id)
+                spend(owner.id, purpose, est_in + est_out_acc)
 
             LLMCallLog.objects.create(
                 owner=owner,
@@ -244,6 +268,8 @@ def generate_text_stream(system: str, user: str, *, owner=None, purpose="") -> I
                 purpose=purpose,
                 ok=True,
                 latency_ms=int((time.time() - t0) * 1000),
+                input_tokens=est_in,
+                output_tokens=est_out_acc,
             )
             return
 
@@ -259,8 +285,11 @@ def generate_text_stream(system: str, user: str, *, owner=None, purpose="") -> I
             )
             raise LLMError(str(e)) from e
 
-    # ---- Ollama streaming (existing) ----
+    # ---- Ollama streaming ----
     model = getattr(settings, "OLLAMA_MODEL", "llama3")
+    est_in = _estimate_tokens((system or "") + "\n" + (user or ""))
+    est_out_acc = 0
+
     try:
         stream = _ollama_client().chat(
             model=model,
@@ -271,16 +300,38 @@ def generate_text_stream(system: str, user: str, *, owner=None, purpose="") -> I
             options={"temperature": 0.2},
             stream=True,
         )
-        did_incr = False
+
         for part in stream:
             chunk = (part.get("message", {}) or {}).get("content") or ""
             if chunk:
+                est_out_acc += _estimate_tokens(chunk)
                 yield chunk
-                
+
         if owner and getattr(owner, "id", None):
             incr_daily_limit(owner.id)
+            spend(owner.id, purpose, est_in + est_out_acc)
+
+        LLMCallLog.objects.create(
+            owner=owner,
+            provider="ollama",
+            model_id=model,
+            purpose=purpose,
+            ok=True,
+            latency_ms=int((time.time() - t0) * 1000),
+            input_tokens=est_in,
+            output_tokens=est_out_acc,
+        )
 
     except Exception as e:
+        LLMCallLog.objects.create(
+            owner=owner,
+            provider="ollama",
+            model_id=model,
+            purpose=purpose,
+            ok=False,
+            error=str(e),
+            latency_ms=int((time.time() - t0) * 1000),
+        )
         raise LLMError(str(e)) from e
 
 def generate_json(system: str, user: str) -> Dict[str, Any]:

@@ -3,7 +3,7 @@ from documents.services.llm.client import generate_text, LLMError
 from .lang_detect import detect_language
 
 
-def generate_title(context_text: str) -> str:
+def generate_title(context_text: str, *, owner=None) -> str:
     clean = (context_text or "").strip()
     if not clean:
         return "Notebook Summary"
@@ -28,7 +28,7 @@ TEXT:
 {clean}
 """
     try:
-        t = (generate_text(system, user) or "").strip()
+        t = (generate_text(system, user, owner=owner, purpose="title") or "").strip()
         # กันโมเดลตอบหลายบรรทัด
         t = t.splitlines()[0].strip()
         # กัน punctuation ปลาย

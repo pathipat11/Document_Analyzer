@@ -14,6 +14,7 @@ from django.utils import timezone
 from django.db.models import Q, Exists, OuterRef
 from urllib.parse import urlencode, quote
 
+from documents.services.llm.token_ledger import get_all_status
 from documents.services.upload.upload_validation import validate_files, get_limits
 from documents.services.analysis.combined_summarizer import build_combined_summary, build_combined_title_and_summary
 from documents.services.pipeline.processor import process_document
@@ -56,7 +57,7 @@ def upload_document(request):
             created.append(doc)
 
         if auto_combine and len(created) >= 2:
-            ai_title, combined_text = build_combined_title_and_summary(created)
+            ai_title, combined_text = build_combined_title_and_summary(created, owner=request.user)
             final_title = title or ai_title
 
             cs = CombinedSummary.objects.create(
@@ -239,7 +240,7 @@ def create_combined_summary(request):
         messages.error(request, "Selected documents not found.")
         return redirect("documents:list")
 
-    title, combined_text = build_combined_title_and_summary(docs)
+    title, combined_text = build_combined_title_and_summary(docs, owner=request.user)
 
     cs = CombinedSummary.objects.create(
         owner=request.user,
@@ -325,8 +326,8 @@ def chat_api(request, conv_id: int):
     if not rid:
         return JsonResponse({"ok": False, "error": "Missing request_id"}, status=400)
 
-    if not check_daily_limit(request.user.id):
-        return JsonResponse({"ok": False, "error": "Daily LLM limit reached. Please try again tomorrow."}, status=429)
+    # if not check_daily_limit(request.user.id):
+    #     return JsonResponse({"ok": False, "error": "Daily LLM limit reached. Please try again tomorrow."}, status=429)
 
     user_msg = Message.objects.create(conversation=conv, role="user", content=user_text)
 
@@ -366,11 +367,11 @@ def chat_stream_api(request, conv_id: int):
 
     cache.delete(f"chat_cancel:{conv.id}:{rid}")
 
-    if not check_daily_limit(request.user.id):
-        return JsonResponse(
-            {"ok": False, "error": "Daily LLM limit reached. Please try again tomorrow."},
-            status=429,
-        )
+    # if not check_daily_limit(request.user.id):
+    #     return JsonResponse(
+    #         {"ok": False, "error": "Daily LLM limit reached. Please try again tomorrow."},
+    #         status=429,
+    #     )
 
     user_msg = Message.objects.create(conversation=conv, role="user", content=user_text)
 
@@ -423,3 +424,20 @@ def chat_cancel_api(request, conv_id: int):
 
     cache.set(f"chat_cancel:{conv.id}:{rid}", True, timeout=300)
     return JsonResponse({"ok": True})
+
+@login_required
+def usage_api(request):
+    items = get_all_status(request.user.id)
+    return JsonResponse({
+        "ok": True,
+        "items": [
+            {
+                "purpose": s.purpose,
+                "budget": s.budget,
+                "spent": s.spent,
+                "remaining": s.remaining,
+                "ratio_remaining": s.ratio_remaining,
+            }
+            for s in items
+        ]
+    })

@@ -124,7 +124,6 @@
         });
 
         document.addEventListener("DOMContentLoaded", () => {
-            // Avatar preview on profile_edit
             const input = document.querySelector('input[type="file"][name="avatar"], input[type="file"]#id_avatar');
             const preview = document.getElementById("avatarPreview");
             const previewText = document.getElementById("avatarPreviewText");
@@ -145,6 +144,90 @@
             });
         });
 
+        document.addEventListener("DOMContentLoaded", () => {
+            const pill = document.getElementById("usagePill");
+            const textEl = document.getElementById("usageText");
+            if (!pill || !textEl) return;
+
+            function ensureToastContainer() {
+                let c = document.getElementById("toast-container");
+                if (!c) {
+                    c = document.createElement("div");
+                    c.id = "toast-container";
+                    c.className = "fixed right-4 top-4 z-50 flex flex-col gap-3";
+                    document.body.appendChild(c);
+                }
+                return c;
+            }
+
+            function showToast(kind, message) {
+                const c = ensureToastContainer();
+                const div = document.createElement("div");
+                div.className = `toast animate-slide-in rounded-xl border p-3 text-sm ${kind === "error"
+                        ? "border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200"
+                        : kind === "warning"
+                            ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
+                            : "border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200"
+                    }`;
+                div.textContent = message;
+                c.appendChild(div);
+
+                setTimeout(() => {
+                    div.style.transition = "opacity 0.4s ease, transform 0.4s ease";
+                    div.style.opacity = "0";
+                    div.style.transform = "translateY(-6px) scale(0.98)";
+                    setTimeout(() => div.remove(), 400);
+                }, 3500);
+            }
+
+            async function refreshUsage() {
+                try {
+                    const res = await fetch("{% url 'documents:usage_api' %}", { credentials: "same-origin" });
+                    const data = await res.json();
+                    if (!data.ok) return;
+
+                    const chat = (data.items || []).find(x => x.purpose === "chat") || data.items?.[0];
+                    if (!chat) return;
+
+                    const remaining = chat.remaining;
+                    const budget = chat.budget;
+                    const pct = budget > 0 ? Math.round((remaining / budget) * 100) : 0;
+
+                    textEl.textContent = `${remaining.toLocaleString()} tokens left (${pct}%)`;
+                    pill.classList.remove("hidden");
+
+                    pill.classList.remove(
+                        "border-amber-300", "bg-amber-50", "text-amber-900", "dark:border-amber-800", "dark:bg-amber-950/40", "dark:text-amber-200",
+                        "border-red-300", "bg-red-50", "text-red-900", "dark:border-red-800", "dark:bg-red-950/40", "dark:text-red-200"
+                    );
+
+                    if (pct <= 0) {
+                        pill.classList.add("border-red-300", "bg-red-50", "text-red-900", "dark:border-red-800", "dark:bg-red-950/40", "dark:text-red-200");
+                    } else if (pct <= 10) {
+                        pill.classList.add("border-amber-300", "bg-amber-50", "text-amber-900", "dark:border-amber-800", "dark:bg-amber-950/40", "dark:text-amber-200");
+                    }
+
+                    // ---- toast (once per day) ----
+                    const dayKey = new Date().toISOString().slice(0, 10); // yyyy-mm-dd
+                    const warnKey = `llm_usage_warned:${dayKey}`;
+
+                    if (pct <= 0) {
+                        if (localStorage.getItem(warnKey) !== "empty") {
+                            showToast("error", "LLM token budget exhausted for Chat. Please try again tomorrow.");
+                            localStorage.setItem(warnKey, "empty");
+                        }
+                    } else if (pct <= 10) {
+                        if (!localStorage.getItem(warnKey)) {
+                            showToast("warning", "LLM token budget is running low for Chat.");
+                            localStorage.setItem(warnKey, "low");
+                        }
+                    }
+                } catch (e) { }
+            }
+
+            refreshUsage();
+            setInterval(refreshUsage, 30000);
+        });
     </script>
 </head>
 
@@ -189,6 +272,15 @@
                         Combined
                     </a>
                 </nav>
+                {% endif %}
+
+                {% if request.user.is_authenticated %}
+                <a id="usagePill" href="{% url 'documents:combined_list' %}"
+                    class="hidden sm:inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs
+          text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800/60">
+                    <span class="font-semibold">Usage</span>
+                    <span id="usageText" class="text-slate-500 dark:text-slate-400">—</span>
+                </a>
                 {% endif %}
 
                 <div class="flex items-center">

@@ -153,10 +153,11 @@
     </form>
 </div>
 <details
-    class="mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
+    class="group mt-6 rounded-xl border border-red-200 bg-red-50 p-4 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200">
     <summary class="cursor-pointer select-none font-semibold flex items-center justify-between">
         <span>Danger Zone</span>
-        <span class="text-xs opacity-80">Click to expand</span>
+        <span class="text-xs opacity-80 group-open:hidden">Click to expand</span>
+        <span class="text-xs opacity-80 hidden group-open:inline">Click to collapse</span>
     </summary>
 
     <div class="mt-3">

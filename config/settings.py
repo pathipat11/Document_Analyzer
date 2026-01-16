@@ -147,7 +147,28 @@ BEDROCK_INFERENCE_PROFILE_ARN = os.getenv("BEDROCK_INFERENCE_PROFILE_ARN", "")
 BEDROCK_MAX_TOKENS = int(os.getenv("BEDROCK_MAX_TOKENS", "800"))
 BEDROCK_TEMPERATURE = float(os.getenv("BEDROCK_TEMPERATURE", "0.2"))
 
-LLM_DAILY_CALL_LIMIT = int(os.getenv("LLM_DAILY_CALL_LIMIT", "200"))
+LLM_DAILY_CALL_LIMIT = int(os.getenv("LLM_DAILY_CALL_LIMIT", "0"))
+
+# LLM_TOKEN_BUDGETS = {
+#     "chat": 40_000,
+#     "chat_stream": 40_000,
+#     "summarize": 25_000,
+#     "classify": 10_000,
+#     "title": 5_000,
+#     "combined": 20_000,
+# }
+
+LLM_TOKEN_BUDGETS = {
+    "chat": int(os.getenv("LLM_TOKENS_CHAT", 0)),
+    "chat_stream": int(os.getenv("LLM_TOKENS_CHAT_STREAM", 0)),
+    "summarize": int(os.getenv("LLM_TOKENS_SUMMARIZE", 0)),
+    "classify": int(os.getenv("LLM_TOKENS_CLASSIFY", 0)),
+    "title": int(os.getenv("LLM_TOKENS_TITLE", 0)),
+    "combined": int(os.getenv("LLM_TOKENS_COMBINED", 0)),
+}
+
+
+LLM_LOW_TOKEN_THRESHOLD_RATIO = 0.10
 
 AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME", "")
 AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME", "ap-southeast-1")

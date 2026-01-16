@@ -16,7 +16,7 @@ def _pick_language(docs: List[Document]) -> str:
     return "th" if votes["th"] >= votes["en"] else "en"
 
 
-def build_combined_summary(docs: List[Document]) -> str:
+def build_combined_summary(docs: List[Document], *, owner=None) -> str:
     """
     Map-Reduce summary:
     - map: ใช้ summary ของแต่ละไฟล์ (ถ้าไม่มี ให้สรุปจาก extracted_text)
@@ -60,11 +60,11 @@ DOCUMENT SUMMARIES:
 {joined}
 """
     try:
-        return (generate_text(system, user) or "").strip()
+        return (generate_text(system, user, owner=owner, purpose="combined") or "").strip()
     except LLMError:
         return ""
 
-def build_combined_title_and_summary(docs: List[Document]) -> Tuple[str, str]:
+def build_combined_title_and_summary(docs: List[Document], *, owner=None) -> Tuple[str, str]:
     if not docs:
         return ("Combined Summary", "")
 
@@ -81,8 +81,7 @@ def build_combined_title_and_summary(docs: List[Document]) -> Tuple[str, str]:
     if not joined:
         return ("Combined Summary", "")
 
-    # generate title จาก joined (สั้นๆ)
-    title = generate_title(joined)
+    title = generate_title(joined, owner=owner)
 
     # reduce summary จาก joined
     lang = "th" if detect_language(joined) == "th" else "en"
@@ -103,8 +102,7 @@ DOCUMENT SUMMARIES:
 {joined}
 """
     try:
-        combined = (generate_text(system, user) or "").strip()
+        combined = (generate_text(system, user, owner=owner, purpose="combined") or "").strip()
     except LLMError:
         combined = ""
-
     return (title, combined)
