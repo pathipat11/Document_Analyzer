@@ -1,5 +1,6 @@
 import csv, json, boto3, re
 from pathlib import Path
+from datetime import datetime, timedelta
 from django.urls import reverse
 from django.conf import settings
 from django.shortcuts import render, redirect, get_object_or_404
@@ -425,11 +426,20 @@ def chat_cancel_api(request, conv_id: int):
     cache.set(f"chat_cancel:{conv.id}:{rid}", True, timeout=300)
     return JsonResponse({"ok": True})
 
+def _next_midnight_iso():
+    tz = timezone.get_current_timezone()
+    now = timezone.localtime(timezone.now(), tz)
+    tomorrow = (now + timedelta(days=1)).date()
+    next_midnight = timezone.make_aware(datetime(tomorrow.year, tomorrow.month, tomorrow.day, 0, 0, 0), tz)
+    return next_midnight.isoformat()
+
 @login_required
 def usage_api(request):
     items = get_all_status(request.user.id)
     return JsonResponse({
         "ok": True,
+        "reset_at": _next_midnight_iso(),
+        "timezone": str(timezone.get_current_timezone()),
         "items": [
             {
                 "purpose": s.purpose,

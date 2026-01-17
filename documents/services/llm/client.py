@@ -5,7 +5,7 @@ from typing import Any, Dict, Iterator
 from documents.models import LLMCallLog
 
 from documents.services.llm.guardrails import check_daily_limit, incr_daily_limit
-from documents.services.llm.token_ledger import can_spend, spend
+from documents.services.llm.token_ledger import can_spend, spend, _normalize_purpose
 
 from django.conf import settings
 
@@ -76,28 +76,25 @@ def _ollama_client():
 def _provider() -> str:
     return (getattr(settings, "LLM_PROVIDER", "") or "ollama").lower().strip()
 
-def _enforce_daily_limit(owner):
-    """
-    owner: Django User หรือ None
-    - ถ้าไม่มี owner -> ไม่บังคับ (หรือคุณจะบังคับก็ได้)
-    - ถ้ามี owner -> เช็ค quota
-    """
+def _enforce_daily_limit(owner, purpose: str):
     if not owner or not getattr(owner, "id", None):
         return
-    if not check_daily_limit(owner.id):
+    from django.conf import settings
+    logger.info("daily_limit=%s user=%s", getattr(settings, "LLM_DAILY_CALL_LIMIT", None), owner.id)
+    if not check_daily_limit(owner.id, purpose):
         raise LLMError("Daily LLM limit reached. Please try again tomorrow.")
-
-
 
 def generate_text(system: str, user: str, *, owner=None, purpose="") -> str:
     prov = _provider()
     t0 = time.time()
     
-    _enforce_daily_limit(owner)
+    _enforce_daily_limit(owner, purpose)
 
     # ---- precheck (token budget) ----
     if owner and getattr(owner, "id", None):
         est_in = _estimate_tokens((system or "") + "\n" + (user or ""))
+        logger.info("LLM precheck user=%s purpose=%s norm=%s est_in=%s",
+                    getattr(owner, "id", None), purpose, _normalize_purpose(purpose), est_in)
         if not can_spend(owner.id, purpose, est_in):
             raise LLMError("Token budget is low or exhausted for this feature. Please try again tomorrow.")
     
@@ -121,7 +118,7 @@ def generate_text(system: str, user: str, *, owner=None, purpose="") -> str:
             text = _extract_claude_text(data)
             
             if owner and getattr(owner, "id", None):
-                incr_daily_limit(owner.id)
+                incr_daily_limit(owner.id, purpose)
 
             usage = data.get("usage") or {}
             in_tok = int(usage.get("input_tokens") or 0)
@@ -169,6 +166,7 @@ def generate_text(system: str, user: str, *, owner=None, purpose="") -> str:
         out_tok = _estimate_tokens(text)
 
         if owner and getattr(owner, "id", None):
+            incr_daily_limit(owner.id, purpose)
             spend(owner.id, purpose, in_tok + out_tok)
 
         LLMCallLog.objects.create(
@@ -200,11 +198,13 @@ def generate_text_stream(system: str, user: str, *, owner=None, purpose="") -> I
     prov = _provider()
     t0 = time.time()
 
-    _enforce_daily_limit(owner)
+    _enforce_daily_limit(owner, purpose)
 
     # ---- precheck (token budget) ----
     if owner and getattr(owner, "id", None):
         est_in = _estimate_tokens((system or "") + "\n" + (user or ""))
+        logger.info("LLM precheck user=%s purpose=%s norm=%s est_in=%s",
+                    getattr(owner, "id", None), purpose, _normalize_purpose(purpose), est_in)
         if not can_spend(owner.id, purpose, est_in):
             raise LLMError("Token budget is low or exhausted for this feature. Please try again tomorrow.")
 
@@ -258,7 +258,7 @@ def generate_text_stream(system: str, user: str, *, owner=None, purpose="") -> I
                             yield text
 
             if owner and getattr(owner, "id", None):
-                incr_daily_limit(owner.id)
+                incr_daily_limit(owner.id, purpose)
                 spend(owner.id, purpose, est_in + est_out_acc)
 
             LLMCallLog.objects.create(
@@ -308,7 +308,7 @@ def generate_text_stream(system: str, user: str, *, owner=None, purpose="") -> I
                 yield chunk
 
         if owner and getattr(owner, "id", None):
-            incr_daily_limit(owner.id)
+            incr_daily_limit(owner.id, purpose)
             spend(owner.id, purpose, est_in + est_out_acc)
 
         LLMCallLog.objects.create(

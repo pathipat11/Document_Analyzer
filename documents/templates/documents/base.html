@@ -63,6 +63,7 @@
 
         document.addEventListener("click", (e) => {
             document.querySelectorAll("details[open]").forEach((d) => {
+                if (d.id === "usageDropdown") return;
                 if (!d.contains(e.target)) d.removeAttribute("open");
             });
         });
@@ -145,10 +146,91 @@
         });
 
         document.addEventListener("DOMContentLoaded", () => {
+            const dd = document.getElementById("usageDropdown");
             const pill = document.getElementById("usagePill");
-            const textEl = document.getElementById("usageText");
-            if (!pill || !textEl) return;
+            const dotEl = document.getElementById("usageDot");
+            const panel = document.getElementById("usagePanel");
+            if (!dd || !pill || !dotEl || !panel) return;
+            function fmtNum(n) {
+                try { return Number(n || 0).toLocaleString(); } catch { return String(n || 0); }
+            }
 
+            function pctOf(remaining, budget) {
+                const b = Number(budget || 0);
+                const r = Number(remaining || 0);
+                return b > 0 ? Math.round((r / b) * 100) : 0;
+            }
+
+            function fmtReset(resetAtIso) {
+                if (!resetAtIso) return "";
+                const d = new Date(resetAtIso);
+                return d.toLocaleString(undefined, { hour: "2-digit", minute: "2-digit", month: "short", day: "2-digit" });
+            }
+
+            function rowHtml(label, item) {
+                const remaining = item?.remaining ?? 0;
+                const budget = item?.budget ?? 0;
+                const spent = item?.spent ?? 0;
+                const pct = pctOf(remaining, budget);
+                const barW = Math.max(0, Math.min(100, pct));
+
+                const barClass =
+                    pct <= 0 ? "bg-red-500" :
+                        pct <= 10 ? "bg-amber-500" :
+                            "bg-slate-900 dark:bg-slate-200";
+
+                return `
+                <div class="px-3 py-3">
+                    <div class="flex items-center justify-between">
+                    <div class="text-sm font-semibold text-slate-800 dark:text-slate-100">${label}</div>
+                    <div class="text-xs text-slate-500 dark:text-slate-400">${fmtNum(remaining)} left (${pct}%)</div>
+                    </div>
+
+                    <div class="mt-2 h-2 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                    <div class="h-full ${barClass}" style="width:${barW}%"></div>
+                    </div>
+
+                    <div class="mt-2 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                    <div>Spent: ${fmtNum(spent)}</div>
+                    <div>Budget: ${fmtNum(budget)}</div>
+                    </div>
+                </div>
+                `;
+            }
+
+            function setDotState(state) {
+                // state: "ok" | "low" | "empty"
+                dotEl.className = "h-2 w-2 rounded-full";
+                dotEl.classList.remove("hidden", "bg-amber-500", "bg-red-500");
+                pill.classList.remove(
+                    "border-amber-300", "bg-amber-50", "text-amber-900", "dark:border-amber-800", "dark:bg-amber-950/40", "dark:text-amber-200",
+                    "border-red-300", "bg-red-50", "text-red-900", "dark:border-red-800", "dark:bg-red-950/40", "dark:text-red-200"
+                );
+
+                if (state === "ok") {
+                    dotEl.classList.add("hidden");
+                    return;
+                }
+
+                dotEl.classList.remove("hidden");
+
+                if (state === "low") {
+                    dotEl.classList.add("bg-amber-500");
+                    pill.classList.add(
+                        "border-amber-300", "bg-amber-50", "text-amber-900",
+                        "dark:border-amber-800", "dark:bg-amber-950/40", "dark:text-amber-200"
+                    );
+                    return;
+                }
+                // empty
+                dotEl.classList.add("bg-red-500");
+                pill.classList.add(
+                    "border-red-300", "bg-red-50", "text-red-900",
+                    "dark:border-red-800", "dark:bg-red-950/40", "dark:text-red-200"
+                );
+            }
+
+            // toast (optional) - ใช้ของคุณได้ แต่ผมใส่แบบปลอดภัย
             function ensureToastContainer() {
                 let c = document.getElementById("toast-container");
                 if (!c) {
@@ -164,10 +246,10 @@
                 const c = ensureToastContainer();
                 const div = document.createElement("div");
                 div.className = `toast animate-slide-in rounded-xl border p-3 text-sm ${kind === "error"
-                        ? "border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200"
-                        : kind === "warning"
-                            ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
-                            : "border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200"
+                    ? "border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200"
+                    : kind === "warning"
+                        ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
+                        : "border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200"
                     }`;
                 div.textContent = message;
                 c.appendChild(div);
@@ -180,54 +262,201 @@
                 }, 3500);
             }
 
+            function toastOncePerDay(purpose, state, msg) {
+                const dayKey = new Date().toISOString().slice(0, 10);
+                const key = `llm_usage_warned:${purpose}:${dayKey}`;
+                if (localStorage.getItem(key) === state) return;
+                localStorage.setItem(key, state);
+                showToast(state === "empty" ? "error" : "warning", msg);
+            }
+
+            let resetTimer = null;
+
+            function scheduleResetRefresh(resetAtIso) {
+                try {
+                    if (resetTimer) clearTimeout(resetTimer);
+                    if (!resetAtIso) return;
+
+                    const t = new Date(resetAtIso).getTime() - Date.now();
+                    // +2s กันเหลื่อม
+                    const ms = Math.max(2000, Math.min(t + 2000, 24 * 60 * 60 * 1000));
+                    resetTimer = setTimeout(() => refreshUsage(), ms);
+                } catch (_) { }
+            }
+
+            // ---- main refresh ----
             async function refreshUsage() {
                 try {
-                    const res = await fetch("{% url 'documents:usage_api' %}", { credentials: "same-origin" });
+                    const res = await fetch("{% url 'documents:usage_api' %}", {
+                        credentials: "same-origin",
+                        cache: "no-store",
+                        headers: { "Accept": "application/json" }
+                    });
+
                     const data = await res.json();
                     if (!data.ok) return;
 
-                    const chat = (data.items || []).find(x => x.purpose === "chat") || data.items?.[0];
-                    if (!chat) return;
+                    const items = data.items || [];
+                    const chat = items.find(x => x.purpose === "chat");
+                    const upload = items.find(x => x.purpose === "upload");
 
-                    const remaining = chat.remaining;
-                    const budget = chat.budget;
-                    const pct = budget > 0 ? Math.round((remaining / budget) * 100) : 0;
-
-                    textEl.textContent = `${remaining.toLocaleString()} tokens left (${pct}%)`;
-                    pill.classList.remove("hidden");
-
-                    pill.classList.remove(
-                        "border-amber-300", "bg-amber-50", "text-amber-900", "dark:border-amber-800", "dark:bg-amber-950/40", "dark:text-amber-200",
-                        "border-red-300", "bg-red-50", "text-red-900", "dark:border-red-800", "dark:bg-red-950/40", "dark:text-red-200"
-                    );
-
-                    if (pct <= 0) {
-                        pill.classList.add("border-red-300", "bg-red-50", "text-red-900", "dark:border-red-800", "dark:bg-red-950/40", "dark:text-red-200");
-                    } else if (pct <= 10) {
-                        pill.classList.add("border-amber-300", "bg-amber-50", "text-amber-900", "dark:border-amber-800", "dark:bg-amber-950/40", "dark:text-amber-200");
+                    function stateFrom(item) {
+                        if (!item) return "ok";
+                        const pct = pctOf(item.remaining, item.budget);
+                        if (pct <= 0) return "empty";
+                        if (pct <= 10) return "low";
+                        return "ok";
                     }
 
-                    // ---- toast (once per day) ----
-                    const dayKey = new Date().toISOString().slice(0, 10); // yyyy-mm-dd
-                    const warnKey = `llm_usage_warned:${dayKey}`;
-
-                    if (pct <= 0) {
-                        if (localStorage.getItem(warnKey) !== "empty") {
-                            showToast("error", "LLM token budget exhausted for Chat. Please try again tomorrow.");
-                            localStorage.setItem(warnKey, "empty");
-                        }
-                    } else if (pct <= 10) {
-                        if (!localStorage.getItem(warnKey)) {
-                            showToast("warning", "LLM token budget is running low for Chat.");
-                            localStorage.setItem(warnKey, "low");
-                        }
+                    function worst(a, b) {
+                        const rank = { ok: 0, low: 1, empty: 2 };
+                        return rank[a] >= rank[b] ? a : b;
                     }
-                } catch (e) { }
+
+                    const sChat = stateFrom(chat);
+                    const sUp = stateFrom(upload);
+                    setDotState(worst(sChat, sUp));
+
+
+                    if (upload) {
+                        const pctU = pctOf(upload.remaining, upload.budget);
+                        if (pctU <= 0) toastOncePerDay("upload", "empty", "Upload token budget exhausted. Please try again after reset.");
+                        else if (pctU <= 10) toastOncePerDay("upload", "low", "Upload token budget is running low.");
+                    }
+
+                    const resetText = fmtReset(data.reset_at);
+                    scheduleResetRefresh(data.reset_at);
+                    const tz = data.timezone || "";
+
+                    if (typeof window.__setMobileUsageUI === "function") {
+                        window.__setMobileUsageUI({ chat, upload, resetText, tz });
+                    }
+                    panel.innerHTML = `
+                        <div class="p-3 border-b border-slate-200 dark:border-slate-800">
+                        <div class="text-xs text-slate-500 dark:text-slate-400">Daily token budgets</div>
+                        <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                            Resets at <span class="font-medium text-slate-700 dark:text-slate-200">${resetText}</span>
+                            <span class="text-slate-400 dark:text-slate-500">${tz ? `(${tz})` : ""}</span>
+                        </div>
+                        </div>
+
+                        ${rowHtml("Chat", chat || { remaining: 0, budget: 0, spent: 0 })}
+                        <div class="h-px bg-slate-200 dark:bg-slate-800"></div>
+                        ${rowHtml("Upload", upload || { remaining: 0, budget: 0, spent: 0 })}
+                    `;
+                } catch (e) {
+                    // เงียบไว้ ไม่ต้องพังหน้า
+                }
             }
+            pill.addEventListener("mouseenter", () => refreshUsage());
 
             refreshUsage();
             setInterval(refreshUsage, 30000);
+
+            document.addEventListener("visibilitychange", () => {
+                if (!document.hidden) refreshUsage();
+            });
+            window.addEventListener("focus", () => refreshUsage());
+
         });
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const mobileBtn = document.getElementById("usageMobileBtn");
+            const mobilePanel = document.getElementById("usageMobilePanel");
+            const mobileDot = document.getElementById("usageMobileDot");
+
+            // ไม่ login หรือไม่มี mobile menu ก็ข้ามได้
+            if (!mobileBtn || !mobilePanel || !mobileDot) return;
+
+            // toggle open/close
+            mobileBtn.addEventListener("click", (e) => {
+                e.preventDefault();
+                mobilePanel.classList.toggle("hidden");
+            });
+
+            // ปิดเมื่อคลิกนอก panel (เฉพาะตอนเปิดอยู่)
+            document.addEventListener("click", (e) => {
+                if (mobilePanel.classList.contains("hidden")) return;
+                const t = e.target;
+                if (!(t instanceof Node)) return;
+                if (mobileBtn.contains(t) || mobilePanel.contains(t)) return;
+                mobilePanel.classList.add("hidden");
+            });
+
+            // ---- helper: update mobile UI (reuse logic ใกล้เคียง desktop) ----
+            function setMobileDot(state) {
+                mobileDot.classList.remove("hidden", "bg-amber-500", "bg-red-500");
+                if (state === "ok") {
+                    mobileDot.classList.add("hidden");
+                    return;
+                }
+                if (state === "low") {
+                    mobileDot.classList.add("bg-amber-500");
+                    return;
+                }
+                mobileDot.classList.add("bg-red-500");
+            }
+
+            // เราจะ “hook” กับผลลัพธ์จาก refreshUsage() โดยทำ event dispatch
+            window.__setMobileUsageUI = function ({ chat, upload, resetText, tz }) {
+                // dot state ใช้ chat เป็นหลัก
+                const pctOf = (remaining, budget) => {
+                    const b = Number(budget || 0);
+                    const r = Number(remaining || 0);
+                    return b > 0 ? Math.round((r / b) * 100) : 0;
+                };
+
+                if (chat) {
+                    const pct = pctOf(chat.remaining, chat.budget);
+                    if (pct <= 0) setMobileDot("empty");
+                    else if (pct <= 10) setMobileDot("low");
+                    else setMobileDot("ok");
+                } else {
+                    setMobileDot("ok");
+                }
+
+                // render panel (ใช้ HTML เดียวกับ desktop ก็ได้ แต่ใส่ให้ชัด)
+                const fmtNum = (n) => { try { return Number(n || 0).toLocaleString(); } catch { return String(n || 0); } };
+                const row = (label, item) => {
+                    const remaining = item?.remaining ?? 0;
+                    const budget = item?.budget ?? 0;
+                    const spent = item?.spent ?? 0;
+                    const pct = pctOf(remaining, budget);
+                    const barW = Math.max(0, Math.min(100, pct));
+                    const barClass = pct <= 0 ? "bg-red-500" : pct <= 10 ? "bg-amber-500" : "bg-slate-900 dark:bg-slate-200";
+
+                    return `
+                    <div class="px-3 py-3">
+                    <div class="flex items-center justify-between">
+                        <div class="text-sm font-semibold text-slate-800 dark:text-slate-100">${label}</div>
+                        <div class="text-xs text-slate-500 dark:text-slate-400">${fmtNum(remaining)} left (${pct}%)</div>
+                    </div>
+                    <div class="mt-2 h-2 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                        <div class="h-full ${barClass}" style="width:${barW}%"></div>
+                    </div>
+                    <div class="mt-2 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                        <div>Spent: ${fmtNum(spent)}</div>
+                        <div>Budget: ${fmtNum(budget)}</div>
+                    </div>
+                    </div>
+                `;
+                };
+
+                mobilePanel.innerHTML = `
+                <div class="p-3 border-b border-slate-200 dark:border-slate-800">
+                    <div class="text-xs text-slate-500 dark:text-slate-400">Daily token budgets</div>
+                    <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Resets at <span class="font-medium text-slate-700 dark:text-slate-200">${resetText || ""}</span>
+                    <span class="text-slate-400 dark:text-slate-500">${tz ? `(${tz})` : ""}</span>
+                    </div>
+                </div>
+                ${row("Chat", chat || { remaining: 0, budget: 0, spent: 0 })}
+                <div class="h-px bg-slate-200 dark:bg-slate-800"></div>
+                ${row("Upload", upload || { remaining: 0, budget: 0, spent: 0 })}
+                `;
+            };
+        });
+
     </script>
 </head>
 
@@ -275,12 +504,21 @@
                 {% endif %}
 
                 {% if request.user.is_authenticated %}
-                <a id="usagePill" href="{% url 'documents:combined_list' %}"
-                    class="hidden sm:inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs
-          text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800/60">
-                    <span class="font-semibold">Usage</span>
-                    <span id="usageText" class="text-slate-500 dark:text-slate-400">—</span>
-                </a>
+                <div id="usageDropdown" class="relative hidden sm:block group">
+                    <div id="usagePill"
+                        class="cursor-default select-none inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800/60">
+                        <span class="font-semibold">Usage</span>
+                        <span id="usageDot" class="hidden h-2 w-2 rounded-full"></span>
+                    </div>
+
+                    <div id="usagePanel" class="absolute right-0 mt-2 w-88 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg
+                        opacity-0 translate-y-1 pointer-events-none transition-all duration-150 z-50
+                        group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto
+                        group-focus-within:opacity-100 group-focus-within:translate-y-0 group-focus-within:pointer-events-auto
+                        dark:border-slate-800 dark:bg-slate-900">
+                        <div class="p-3 text-sm text-slate-500 dark:text-slate-400">Loading…</div>
+                    </div>
+                </div>
                 {% endif %}
 
                 <div class="flex items-center">
@@ -433,6 +671,27 @@
                     class="rounded-lg px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800/60">Upload</a>
                 <a href="{% url 'documents:combined_list' %}"
                     class="rounded-lg px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800/60">Combined</a>
+                <div class="pt-2">
+                    <button id="usageMobileBtn" type="button" class="w-full flex items-center justify-between rounded-lg px-3 py-2 text-sm
+               border border-slate-200 bg-white hover:bg-slate-50
+               dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800/60">
+                        <span class="font-medium">Usage</span>
+                        <span class="flex items-center gap-2">
+                            <span id="usageMobileDot" class="hidden h-2 w-2 rounded-full"></span>
+                            <svg class="h-4 w-4 text-slate-500 dark:text-slate-300" viewBox="0 0 20 20"
+                                fill="currentColor">
+                                <path fill-rule="evenodd"
+                                    d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z"
+                                    clip-rule="evenodd" />
+                            </svg>
+                        </span>
+                    </button>
+
+                    <div id="usageMobilePanel" class="mt-2 hidden overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm
+               dark:border-slate-800 dark:bg-slate-900">
+                        <div class="p-3 text-sm text-slate-500 dark:text-slate-400">Loading…</div>
+                    </div>
+                </div>
             </div>
         </div>
         {% endif %}

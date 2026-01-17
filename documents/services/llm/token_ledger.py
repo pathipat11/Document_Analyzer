@@ -17,9 +17,14 @@ def _seconds_until_tomorrow() -> int:
 
 def _normalize_purpose(purpose: str) -> str:
     p = (purpose or "").strip().lower()
-    if p == "chat_stream":
-        return "chat"  # รวม stream เข้ากับ chat (ปรับได้)
-    return p or "chat"
+
+    if p in ("chat", "chat_stream"):
+        return "chat"
+
+    if p in ("summarize", "classify", "title", "combined", "upload"):
+        return "upload"
+
+    return "chat"
 
 def _key_total(user_id: int, purpose: str) -> str:
     return f"llm_tokens:{user_id}:{_today()}:{_normalize_purpose(purpose)}:total"
@@ -36,11 +41,9 @@ def get_remaining(user_id: int, purpose: str) -> int:
     return max(0, b - get_spent(user_id, purpose))
 
 def can_spend(user_id: int, purpose: str, est_tokens: int) -> bool:
-    # กันไว้ก่อนยิงจริง (estimate)
     return get_remaining(user_id, purpose) >= max(1, int(est_tokens))
 
 def spend(user_id: int, purpose: str, tokens: int):
-    # อัปเดตหลังรู้ tokens จริง
     ttl = _seconds_until_tomorrow()
     key = _key_total(user_id, purpose)
     cache.add(key, 0, timeout=ttl)
@@ -67,13 +70,11 @@ def get_all_status(user_id: int) -> list[PurposeStatus]:
         remaining = max(0, budget - spent)
         ratio = (remaining / budget) if budget > 0 else 0.0
         out.append(PurposeStatus(p2, budget, spent, remaining, ratio))
-    # รวม purpose ซ้ำ (ถ้าตั้งทั้ง chat และ chat_stream) ให้เหลือ unique
     uniq = {}
     for s in out:
         if s.purpose not in uniq:
             uniq[s.purpose] = s
         else:
-            # เอา budget ที่มากกว่า หรือ sum ตามที่ต้องการ
             prev = uniq[s.purpose]
             uniq[s.purpose] = PurposeStatus(
                 s.purpose,
@@ -82,4 +83,4 @@ def get_all_status(user_id: int) -> list[PurposeStatus]:
                 max(prev.remaining, s.remaining),
                 max(prev.ratio_remaining, s.ratio_remaining),
             )
-    return sorted(uniq.values(), key=lambda x: x.purpose)
+    return sorted(uniq.values(), key=lambda x: 0 if x.purpose == "chat" else 1)

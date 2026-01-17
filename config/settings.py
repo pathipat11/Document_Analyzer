@@ -149,24 +149,10 @@ BEDROCK_TEMPERATURE = float(os.getenv("BEDROCK_TEMPERATURE", "0.2"))
 
 LLM_DAILY_CALL_LIMIT = int(os.getenv("LLM_DAILY_CALL_LIMIT", "0"))
 
-# LLM_TOKEN_BUDGETS = {
-#     "chat": 40_000,
-#     "chat_stream": 40_000,
-#     "summarize": 25_000,
-#     "classify": 10_000,
-#     "title": 5_000,
-#     "combined": 20_000,
-# }
-
 LLM_TOKEN_BUDGETS = {
     "chat": int(os.getenv("LLM_TOKENS_CHAT", 0)),
-    "chat_stream": int(os.getenv("LLM_TOKENS_CHAT_STREAM", 0)),
-    "summarize": int(os.getenv("LLM_TOKENS_SUMMARIZE", 0)),
-    "classify": int(os.getenv("LLM_TOKENS_CLASSIFY", 0)),
-    "title": int(os.getenv("LLM_TOKENS_TITLE", 0)),
-    "combined": int(os.getenv("LLM_TOKENS_COMBINED", 0)),
+    "upload": int(os.getenv("LLM_TOKENS_UPLOAD", 0)),
 }
-
 
 LLM_LOW_TOKEN_THRESHOLD_RATIO = 0.10
 
@@ -208,3 +194,10 @@ LOGGING = {
 LOGIN_URL = "/accounts/login/"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/accounts/login/"
+
+# CACHES = {
+#     "default": {
+#         "BACKEND": "django.core.cache.backends.redis.RedisCache",
+#         "LOCATION": os.getenv("REDIS_URL", "redis://127.0.0.1:6379/1"),
+#     }
+# }

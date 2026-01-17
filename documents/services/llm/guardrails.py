@@ -3,9 +3,14 @@ from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta, datetime
 
-def _today_key(user_id: int) -> str:
+def _today_key(user_id: int, purpose: str = "chat") -> str:
     today = timezone.localdate()
-    return f"llm_calls:{user_id}:{today.isoformat()}"
+    purpose = (purpose or "chat").strip().lower()
+    if purpose in ("chat_stream",):
+        purpose = "chat"
+    elif purpose in ("summarize", "classify", "title", "combined", "upload"):
+        purpose = "upload"
+    return f"llm_calls:{user_id}:{today.isoformat()}:{purpose}"
 
 def _seconds_until_tomorrow() -> int:
     tz = timezone.get_current_timezone()
@@ -17,19 +22,22 @@ def _seconds_until_tomorrow() -> int:
     )
     return max(1, int((next_midnight - now).total_seconds()))
 
-def check_daily_limit(user_id: int) -> bool:
-    key = _today_key(user_id)
-    n = cache.get(key, 0)
+def check_daily_limit(user_id: int, purpose: str = "chat") -> bool:
     limit = int(getattr(settings, "LLM_DAILY_CALL_LIMIT", 200))
+    if limit <= 0:
+        return True
+    key = _today_key(user_id, purpose)
+    n = cache.get(key, 0)
     return n < limit
 
-def incr_daily_limit(user_id: int):
-    key = _today_key(user_id)
+def incr_daily_limit(user_id: int, purpose: str = "chat"):
+    limit = int(getattr(settings, "LLM_DAILY_CALL_LIMIT", 200))
+    if limit <= 0:
+        return
+    key = _today_key(user_id, purpose)
     ttl = _seconds_until_tomorrow()
-    # ตั้งค่าเริ่มต้น + TTL ให้ตรงกับเที่ยงคืน
     cache.add(key, 0, timeout=ttl)
     try:
         cache.incr(key)
     except ValueError:
-        # บาง backend อาจต้อง set ก่อน
         cache.set(key, 1, timeout=ttl)

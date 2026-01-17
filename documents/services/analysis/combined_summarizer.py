@@ -1,5 +1,8 @@
 from __future__ import annotations
+import logging
 from typing import List, Tuple
+
+logger = logging.getLogger(__name__)
 
 from .summarizer import summarize_text
 from .lang_detect import detect_language
@@ -7,14 +10,12 @@ from .title_generator import generate_title
 from documents.services.llm.client import generate_text, LLMError
 from documents.models import Document
 
-
 def _pick_language(docs: List[Document]) -> str:
-    # ถ้าเอกสารส่วนใหญ่เป็นไทย -> th ไม่งั้น en
     votes = {"th": 0, "en": 0}
     for d in docs:
-        votes[detect_language(d.extracted_text or "")] += 1
+        txt = (d.summary or d.extracted_text or "").strip()
+        votes[detect_language(txt)] += 1
     return "th" if votes["th"] >= votes["en"] else "en"
-
 
 def build_combined_summary(docs: List[Document], *, owner=None) -> str:
     """
@@ -29,8 +30,10 @@ def build_combined_summary(docs: List[Document], *, owner=None) -> str:
     per_doc_summaries: List[str] = []
     for d in docs:
         s = (d.summary or "").strip()
-        if not s and (d.extracted_text or "").strip():
-            s = summarize_text(d.extracted_text)
+        if not s:
+            raw = (d.extracted_text or "").strip().replace("\n", " ")
+            s = (raw[:400] + "…") if raw else ""
+
         if s:
             per_doc_summaries.append(f"- {d.file_name}: {s}")
 
@@ -39,7 +42,6 @@ def build_combined_summary(docs: List[Document], *, owner=None) -> str:
 
     joined = "\n".join(per_doc_summaries)
 
-    # Reduce: สรุปรวมจาก summary แต่ละไฟล์ (สั้นลง)
     lang = _pick_language(docs)
     lang_instruction = "Write in Thai." if lang == "th" else "Write in English."
 
@@ -51,9 +53,10 @@ def build_combined_summary(docs: List[Document], *, owner=None) -> str:
 Create a consolidated summary from the document summaries below.
 
 Requirements:
-- Exactly 4-6 bullet points.
+- Output MUST be exactly 4-6 bullet points.
+- Use "-" at the start of each bullet.
+- No intro, no headings, no extra lines.
 - Each bullet captures a key theme across documents.
-- No intro, no disclaimers.
 - {lang_instruction}
 
 DOCUMENT SUMMARIES:
@@ -61,8 +64,9 @@ DOCUMENT SUMMARIES:
 """
     try:
         return (generate_text(system, user, owner=owner, purpose="combined") or "").strip()
-    except LLMError:
-        return ""
+    except LLMError as e:
+        logger.warning("combined_summary failed: %s", e)
+        return "(combined summary not available: quota reached)"
 
 def build_combined_title_and_summary(docs: List[Document], *, owner=None) -> Tuple[str, str]:
     if not docs:
@@ -72,8 +76,10 @@ def build_combined_title_and_summary(docs: List[Document], *, owner=None) -> Tup
     per_doc = []
     for d in docs:
         s = (d.summary or "").strip()
-        if not s and (d.extracted_text or "").strip():
-            s = summarize_text(d.extracted_text)
+        if not s:
+            raw = (d.extracted_text or "").strip().replace("\n", " ")
+            s = (raw[:400] + "…") if raw else ""
+
         if s:
             per_doc.append(f"- {d.file_name}: {s}")
 
@@ -103,6 +109,7 @@ DOCUMENT SUMMARIES:
 """
     try:
         combined = (generate_text(system, user, owner=owner, purpose="combined") or "").strip()
-    except LLMError:
-        combined = ""
+    except LLMError as e:
+        logger.warning("combined_summary failed: %s", e)
+        return (title or "Combined Summary", "(combined summary not available: quota reached)")
     return (title, combined)

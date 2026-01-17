@@ -84,6 +84,45 @@ def _notebook_context(nb: CombinedSummary) -> str:
 
     return "\n\n".join(parts).strip()
 
+def _document_context_for_question(doc: Document, question: str) -> str:
+    parts = []
+    if (doc.summary or "").strip():
+        parts.append(f"SUMMARY:\n{doc.summary.strip()}")
+
+    chunks = retrieve_top_chunks(doc.id, question, k=6)
+    if chunks:
+        lines = []
+        for ch in chunks:
+            lines.append(f"[C{ch.idx}] {ch.content}")
+        parts.append("RELEVANT EXCERPTS:\n" + "\n\n".join(lines))
+
+    return "\n\n".join(parts).strip()
+
+def _looks_general_question(q: str) -> bool:
+    ql = (q or "").lower().strip()
+    if not ql:
+        return True
+    # คำถามทั่วไปที่ไม่ควรถูกบังคับให้ตอบจากไฟล์
+    general_starts = (
+        "สวัสดี", "hello", "hi", "ช่วยคิด", "ไอเดีย", "แนะนำ", "opinion",
+        "ทำยังไง", "how to", "what is", "คืออะไร", "แตกต่าง", "ต่างกัน",
+    )
+    return ql.startswith(general_starts)
+
+def _is_doc_relevant(doc: Document, question: str) -> bool:
+    if _looks_general_question(question):
+        return False
+    chunks = retrieve_top_chunks(doc.id, question, k=3)
+    if not chunks:
+        return False
+    top = chunks[0]
+    if top.score < 4:
+        return False
+    if top.matched_terms < 2:
+        return False
+    return True
+
+
 
 def answer_chat(conv: Conversation, user_question: str) -> str:
     """
@@ -93,13 +132,21 @@ def answer_chat(conv: Conversation, user_question: str) -> str:
     if not q:
         return ""
 
-    # context ตาม target
+    mode = "general"
+
     if conv.document_id:
         doc = conv.document
-        context = _document_context_for_question(doc, q)
+        if _is_doc_relevant(doc, q):
+            mode = "doc"
+            context = _document_context_for_question(doc, q)
+        else:
+            context = ""  # general mode ไม่ต้องส่ง context
     else:
+        # notebook chat ส่วนใหญ่ผู้ใช้คาดหวังอิงไฟล์
         nb = conv.notebook
+        mode = "doc"
         context = _notebook_context(nb)
+
 
     q_lang = detect_language(q)
     lang = q_lang if q_lang in ("th", "en") else _pick_lang(context, q)
@@ -109,32 +156,44 @@ def answer_chat(conv: Conversation, user_question: str) -> str:
     # history: เอาเฉพาะท้าย ๆ
     history = _build_history(conv)
 
-    system = (
-        "You are a helpful assistant for a local document analyzer app.\n"
-        "If you use facts, cite the excerpt id like [C12].\n"
-        "You must answer using ONLY the provided CONTEXT.\n"
-        "Always reply in the same language as the USER QUESTION.\n"
-        "If the answer is not in the context, say you don't have enough information "
-        "and suggest what to upload or what to ask next.\n"
-        "Be concise, but clear.\n"
-    )
+    if mode == "doc":
+        system = (
+            "You are a helpful assistant for a document analyzer app.\n"
+            "You must answer primarily using the provided CONTEXT.\n"
+            "If you use facts from excerpts, cite them like [C12].\n"
+            "Do NOT mention 'based on the file' or 'according to the document' explicitly.\n"
+            "Always reply in the same language as the USER QUESTION.\n"
+            "If the answer is not in the context, say you don't have enough information "
+            "and suggest what to upload or what to ask next.\n"
+        )
 
-    # เราจะส่ง history + question เป็น messages ต่อท้าย
-    # โดย pack context เข้าไปใน system/user เพื่อคุมทิศ
-    user = f"""
-{lang_instruction}
+        user = f"""
+    {lang_instruction}
 
-CONTEXT (authoritative):
-{_trim(context, max_chars=MAX_CONTEXT_CHARS)}
+    CONTEXT:
+    {_trim(context, max_chars=MAX_CONTEXT_CHARS)}
 
-USER QUESTION:
-{q}
+    USER QUESTION:
+    {q}
 
-Rules:
-- Use ONLY the context above.
-- No disclaimers.
-- If missing info, say what is missing and suggest next step.
-"""
+    Rules:
+    - If you use excerpt facts, cite [C#].
+    - If missing info in context, say what's missing and suggest next step.
+    """
+    else:
+        system = (
+            "You are a helpful assistant.\n"
+            "Reply naturally like a normal chat.\n"
+            "Do NOT mention documents, context, excerpts, or citations.\n"
+            "Always reply in the same language as the USER QUESTION.\n"
+        )
+        user = f"""
+    {lang_instruction}
+
+    USER QUESTION:
+    {q}
+    """
+
 
     try:
         # ถ้าอยาก include history แบบ messages หลายอัน:
@@ -159,12 +218,21 @@ def answer_chat_stream(conv: Conversation, user_question: str, should_stop=None)
         yield ""
         return
 
+    mode = "general"
+
     if conv.document_id:
         doc = conv.document
-        context = _document_context(doc)
+        if _is_doc_relevant(doc, q):
+            mode = "doc"
+            context = _document_context_for_question(doc, q)
+        else:
+            context = ""  # general mode ไม่ต้องส่ง context
     else:
+        # notebook chat ส่วนใหญ่ผู้ใช้คาดหวังอิงไฟล์
         nb = conv.notebook
+        mode = "doc"
         context = _notebook_context(nb)
+
 
     q_lang = detect_language(q)
     lang = q_lang if q_lang in ("th", "en") else _pick_lang(context, q)
@@ -172,29 +240,43 @@ def answer_chat_stream(conv: Conversation, user_question: str, should_stop=None)
 
     history = _build_history(conv)
 
-    system = (
-        "You are a helpful assistant for a local document analyzer app.\n"
-        "You must answer using ONLY the provided CONTEXT.\n"
-        "Always reply in the same language as the USER QUESTION.\n"
-        "If the answer is not in the context, say you don't have enough information "
-        "and suggest what to upload or what to ask next.\n"
-        "Be concise, but clear.\n"
-    )
+    if mode == "doc":
+        system = (
+            "You are a helpful assistant for a document analyzer app.\n"
+            "You must answer primarily using the provided CONTEXT.\n"
+            "If you use facts from excerpts, cite them like [C12].\n"
+            "Do NOT mention 'based on the file' or 'according to the document' explicitly.\n"
+            "Always reply in the same language as the USER QUESTION.\n"
+            "If the answer is not in the context, say you don't have enough information "
+            "and suggest what to upload or what to ask next.\n"
+        )
 
-    user = f"""
-{lang_instruction}
+        user = f"""
+    {lang_instruction}
 
-CONTEXT (authoritative):
-{_trim(context, max_chars=MAX_CONTEXT_CHARS)}
+    CONTEXT:
+    {_trim(context, max_chars=MAX_CONTEXT_CHARS)}
 
-USER QUESTION:
-{q}
+    USER QUESTION:
+    {q}
 
-Rules:
-- Use ONLY the context above.
-- No disclaimers.
-- If missing info, say what is missing and suggest next step.
-"""
+    Rules:
+    - If you use excerpt facts, cite [C#].
+    - If missing info in context, say what's missing and suggest next step.
+    """
+    else:
+        system = (
+            "You are a helpful assistant.\n"
+            "Reply naturally like a normal chat.\n"
+            "Do NOT mention documents, context, excerpts, or citations.\n"
+            "Always reply in the same language as the USER QUESTION.\n"
+        )
+        user = f"""
+    {lang_instruction}
+
+    USER QUESTION:
+    {q}
+    """
 
     if history:
         hist_text = "\n".join([f"{m['role'].upper()}: {m['content']}" for m in history])
@@ -207,16 +289,3 @@ Rules:
             return
         yield t
         
-def _document_context_for_question(doc: Document, question: str) -> str:
-    parts = []
-    if (doc.summary or "").strip():
-        parts.append(f"SUMMARY:\n{doc.summary.strip()}")
-
-    chunks = retrieve_top_chunks(doc.id, question, k=6)
-    if chunks:
-        lines = []
-        for ch in chunks:
-            lines.append(f"[C{ch.idx}] {ch.content}")
-        parts.append("RELEVANT EXCERPTS:\n" + "\n\n".join(lines))
-
-    return "\n\n".join(parts).strip()
