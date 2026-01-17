@@ -85,7 +85,7 @@ The system supports **multi-document analysis** via a *notebook* abstraction.
 
 #### Processing Strategy
 
-* **Map step**: generate summaries for each document
+* **Map step**: generate per-document lightweight summaries
 * **Reduce step**:
 
   * Generate a consolidated summary across all documents
@@ -98,56 +98,88 @@ Each notebook contains:
 * Linked source documents
 * Aggregate metadata (document count, total words)
 
+> The combined summary is intentionally optimized to avoid re-summarizing full documents, reducing token usage while preserving cross-document themes.
+
 ---
 
-### 5. Chat Q&A (Document & Notebook)
+### 5. Smart Chat Routing (Document vs General Chat)
 
-Users can chat with:
+The chat system supports **dual-mode conversation routing**:
 
-* A **single document**, or
-* A **notebook (combined summary)**
+* **Document-aware mode** — answers grounded in document content
+* **General chat mode** — behaves like a normal assistant
 
-#### Core Capabilities
+#### Automatic Mode Detection
 
-* Context-aware Q&A using extracted text and summaries
-* Retrieval-augmented prompting for documents (top relevant chunks)
-* Conversation history included (bounded by recent turns)
+* The system evaluates whether a user question is relevant to the document by:
 
-#### Streaming + Cancel (ChatGPT-like UX)
+  * Keyword overlap scoring
+  * Stopword filtering (Thai + English)
+  * Minimum relevance thresholds
 
-* **Server-Sent Events (SSE)** token streaming
+If a question is deemed **unrelated** to the document, the assistant:
+
+* Responds naturally without referencing files
+* Avoids misleading document-based answers
+
+#### Manual Override (Optional)
+
+Users can explicitly control routing:
+
+* `@doc <question>` → force document-based answering
+* `@chat <question>` → force general chat mode
+
+---
+
+### 6. Retrieval-Augmented Chat (RAG-lite)
+
+For document-based chat:
+
+* The system retrieves **top relevant text chunks** per question
+* Chunks are scored using term overlap heuristics
+* Only relevant excerpts are injected into the prompt
+
+Benefits:
+
+* Reduced context size
+* Higher factual accuracy
+* Lower token usage
+
+Citations are internally tracked using excerpt IDs (e.g. `[C3]`) without exposing file-centric language to users.
+
+---
+
+### 7. Streaming Chat with Cancellation (ChatGPT-like UX)
+
+* Server-Sent Events (SSE) token streaming
 * Tokens appear in real time
-* Single button UX:
+* Single-button UX:
 
   * `Send` → `Cancel`
-* Dual cancellation mechanism:
 
-  * Client-side abort (`AbortController`)
-  * Server-side cancel flag (prevents saving partial responses)
+#### Dual Cancellation Safety
 
-This ensures:
+* Client-side abort (`AbortController`)
+* Server-side cancel flag (prevents DB writes)
 
-* Lower perceived latency
-* No wasted tokens
+Guarantees:
+
 * No partial assistant messages saved
+* No unnecessary token usage
+* Clean conversation history
 
 ---
 
-### 6. LLM Architecture (Local + Cloud)
+### 8. LLM Architecture (Local + Cloud)
 
-The system abstracts LLM usage behind a dedicated service layer.
+LLM access is abstracted behind a unified service layer.
 
 #### Supported Providers
 
-* **Ollama (local-first)**
+* **Ollama (local-first)** — development & experimentation
+* **AWS Bedrock (Claude 3.5 Haiku via Inference Profile ARN)** — managed production-style inference
 
-  * Used for development and experimentation
-* **AWS Bedrock (Claude 3.5 Haiku via Inference Profile ARN)**
-
-  * Production-style managed inference
-  * Supports streaming responses
-
-Switching providers is controlled via environment variables:
+Switching providers:
 
 ```env
 LLM_PROVIDER=bedrock  # or ollama
@@ -155,68 +187,59 @@ LLM_PROVIDER=bedrock  # or ollama
 
 #### Unified LLM Client
 
-* `generate_text(...)` – synchronous responses
-* `generate_text_stream(...)` – streaming responses
+* `generate_text(...)` — synchronous inference
+* `generate_text_stream(...)` — streaming inference
+* Provider-agnostic interface
 * Centralized logging via `LLMCallLog`
-* Consistent interface across providers
 
 ---
 
-### 7. Guardrails & Cost Control
+### 9. Guardrails, Quotas & Cost Control
 
-To prevent runaway usage and control costs:
+To prevent runaway usage:
 
-* **Daily per-user LLM quota**
+* **Daily per-user call limits**
+* **Per-feature token budgets** (chat vs upload/analysis)
+* Preflight token estimation before execution
 
-  * Enforced at service level
-  * Checked before each request
-* Unified guardrail logic shared by:
+If limits are exceeded:
 
-  * Chat
-  * Summarization
-  * Classification
-
-When the limit is reached:
-
-* API returns `429`
-* UI displays a clear, user-friendly message
+* Requests are blocked early
+* Clear error messages are returned (`429`)
+* UI displays remaining quota and reset time
 
 ---
 
-### 8. Storage Abstraction (Local → Cloud Ready)
+### 10. Storage Abstraction (Local → S3 Ready)
 
-* Uses Django’s storage abstraction (`FileField` + storage backend)
-* Designed to migrate from:
-
-  * Local filesystem (`MEDIA_ROOT`)
-  * → **Amazon S3** (planned)
-
-Key design choices:
-
-* File access via storage streams (not `.path`)
-* Compatible with private S3 buckets
+* Uses Django storage abstraction (`FileField` + storage backend)
+* File access via streams (no filesystem coupling)
+* Compatible with private Amazon S3 buckets
 * Ready for pre-signed download URLs
 
 ---
 
-### 9. User Interface & UX
+### 11. User Interface & UX
 
-* Built with **Django Templates + Tailwind CSS**
-* Light / Dark mode toggle (persisted in browser)
+* Django Templates + Tailwind CSS
+
 * Responsive layout
+
+* Light / Dark mode toggle (persisted client-side)
+
 * Toast notifications for:
 
-  * Upload success/failure
-  * Delete actions
-  * LLM errors
+  * Upload results
+  * Deletions
+  * LLM quota errors
+
 * Paginated document list (10 items per page)
-* Type-based filtering (works with pagination)
+
+* Type-based filtering with pagination preservation
 
 ---
 
 ## Architecture
-
-### High-Level Structure
 
 ```
 documents/
@@ -224,34 +247,125 @@ documents/
 ├── models.py           # Document, Notebook, Conversation, Message
 ├── services/
 │   ├── upload/          # Validation & limits
-│   ├── pipeline/        # Orchestration (extract → analyze → save)
+│   ├── pipeline/        # Extract → analyze → persist
 │   ├── analysis/        # Summarizer, classifier, language detection
-│   ├── chat/            # Context building & chat logic
-│   ├── llm/             # LLM client, guardrails, logging
-│   └── storage/         # File organization (optional)
+│   ├── chat/            # Routing, retrieval, streaming chat
+│   ├── llm/             # Providers, guardrails, token ledger
+│   └── storage/         # File organization (S3-ready)
 ```
 
-The architecture keeps:
+Design goals:
 
-* Views thin
-* Business logic testable
-* LLM usage isolated and auditable
+* Thin views
+* Testable services
+* Auditable LLM usage
 
 ---
 
 ## Processing Flow
 
-### Single Document
+### 1. Single Document Upload Flow
 
-Upload → Validate → Save File → Extract Text → Metadata → LLM Summary & Type → Persist → Detail View
+```
+User Upload
+   ↓
+Validation (size / count / type)
+   ↓
+File Storage (Django storage abstraction)
+   ↓
+Text Extraction
+   ↓
+Metadata Analysis (word / char count)
+   ↓
+LLM Summarization + Classification
+   ↓
+Persist Document
+   ↓
+Document Detail View
+```
 
-### Notebook (Multiple Documents)
+Key characteristics:
 
-Upload / Select → Per-Doc Summaries → AI Title → Consolidated Summary → Notebook View
+* Fully synchronous (prototype-friendly)
+* Each step is isolated in a service layer
+* Safe to migrate into background workers later
 
-### Chat (Streaming)
+---
 
-Open Chat → Send Message → Save User Message → Stream Tokens → Save Final Assistant Message (unless canceled)
+### 2. Multiple Documents → Notebook Flow
+
+```
+Upload or Select Multiple Documents
+   ↓
+Per-Document Summaries (Map step)
+   ↓
+Title Generation
+   ↓
+Consolidated Summary (Reduce step)
+   ↓
+Notebook (CombinedSummary) Created
+   ↓
+Notebook Detail View
+```
+
+Design notes:
+
+* Map summaries are reused where possible
+* Reduce step operates on summaries, not raw text (cost-efficient)
+* Notebook keeps references to original documents
+
+---
+
+### 3. Chat (Streaming) Flow
+
+```
+Open Chat View
+   ↓
+User Sends Message
+   ↓
+Save User Message
+   ↓
+Context Assembly
+   ↓
+LLM Streaming Response (SSE)
+   ↓
+Token-by-token UI Update
+   ↓
+Final Assistant Message Saved
+```
+
+If canceled:
+
+```
+Cancel Triggered
+   ↓
+Abort Stream (Client)
+   ↓
+Stop Generation (Server)
+   ↓
+No Assistant Message Saved
+```
+
+---
+
+### 4. Smart Chat Routing Flow
+
+```
+User Question
+   ↓
+Heuristic Check (general vs document-related)
+   ↓
+├─ Document-related → Retrieval + Context
+└─ General question → Plain Chat Mode
+   ↓
+LLM Response
+```
+
+This approach:
+
+* Prevents hallucinated file references
+* Improves answer relevance
+* Keeps UX similar to normal chat when appropriate
 
 ---
 
@@ -259,22 +373,10 @@ Open Chat → Send Message → Save User Message → Stream Tokens → Save Fina
 
 * **Backend:** Python, Django
 * **Database:** PostgreSQL
-* **LLM Providers:**
-
-  * Ollama (local)
-  * AWS Bedrock (Claude 3.5)
+* **LLM Providers:** Ollama, AWS Bedrock (Claude 3.5)
 * **Frontend:** Django Templates, Tailwind CSS
 * **Streaming:** Server-Sent Events (SSE)
 * **Auth:** Django Authentication System
-
----
-
-## Limitations
-
-* No OCR for scanned PDFs
-* Synchronous processing (no background workers)
-* Designed for low-to-moderate concurrency
-* Prototype-level security hardening
 
 ---
 
@@ -285,6 +387,4 @@ Open Chat → Send Message → Save User Message → Stream Tokens → Save Fina
 * Amazon S3 + CloudFront integration
 * Team-based notebooks and sharing
 * Advanced usage analytics
-* Fine-grained role-based access control
-
-
+* Role-based access control
