@@ -280,6 +280,10 @@
                             escapeHtml(state.assistantText || "").replace(/\n/g, "<br>") || `<span class="opacity-80">No response.</span>`,
                             d?.created_at || ""
                         );
+                        
+                        if (window.Usage && typeof window.Usage.refresh === "function") {
+                            window.Usage.refresh({ reason: "chat_done" });
+                        }
                     },
 
                     canceled: () => {
