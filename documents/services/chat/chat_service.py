@@ -21,15 +21,6 @@ def _trim(text: str, max_chars: int = MAX_CONTEXT_CHARS) -> str:
     half = max_chars // 2
     return t[:half] + "\n\n...[TRUNCATED]...\n\n" + t[-half:]
 
-
-def _pick_lang(*texts: str) -> str:
-    # ถ้ามีข้อความไทยเยอะ -> th
-    blob = "\n".join([(t or "") for t in texts]).strip()
-    if not blob:
-        return "en"
-    return "th" if detect_language(blob) == "th" else "en"
-
-
 def _build_history(conv: Conversation) -> List[dict]:
     """
     เอา history ล่าสุดเป็น messages สำหรับ LLM
@@ -44,21 +35,6 @@ def _build_history(conv: Conversation) -> List[dict]:
     for m in items:
         out.append({"role": m.role, "content": (m.content or "").strip()})
     return out
-
-
-def _document_context(doc: Document) -> str:
-    """
-    Context สำหรับ document เดี่ยว:
-    - summary (ถ้ามี)
-    - extracted_text (ตัดให้สั้น)
-    """
-    parts = []
-    if (doc.summary or "").strip():
-        parts.append(f"SUMMARY:\n{doc.summary.strip()}")
-    if (doc.extracted_text or "").strip():
-        parts.append(f"DOCUMENT TEXT:\n{_trim(doc.extracted_text)}")
-    return "\n\n".join(parts).strip()
-
 
 def _notebook_context(nb: CombinedSummary) -> str:
     """
@@ -84,208 +60,130 @@ def _notebook_context(nb: CombinedSummary) -> str:
 
     return "\n\n".join(parts).strip()
 
-def _document_context_for_question(doc: Document, question: str) -> str:
-    parts = []
-    if (doc.summary or "").strip():
-        parts.append(f"SUMMARY:\n{doc.summary.strip()}")
-
-    chunks = retrieve_top_chunks(doc.id, question, k=6)
-    if chunks:
-        lines = []
-        for ch in chunks:
-            lines.append(f"[C{ch.idx}] {ch.content}")
-        parts.append("RELEVANT EXCERPTS:\n" + "\n\n".join(lines))
-
-    return "\n\n".join(parts).strip()
-
 def _looks_general_question(q: str) -> bool:
-    ql = (q or "").lower().strip()
+    ql = (q or "").strip().lower()
     if not ql:
         return True
-    # คำถามทั่วไปที่ไม่ควรถูกบังคับให้ตอบจากไฟล์
-    general_starts = (
-        "สวัสดี", "hello", "hi", "ช่วยคิด", "ไอเดีย", "แนะนำ", "opinion",
-        "ทำยังไง", "how to", "what is", "คืออะไร", "แตกต่าง", "ต่างกัน",
+
+    greetings = ("สวัสดี", "hello", "hi", "hey")
+    if ql.startswith(greetings) and len(ql) <= 12:
+        return True
+
+    if len(ql) <= 10:
+        return True
+
+    return False
+
+def _build_context(conv: Conversation, question: str) -> str:
+    q = (question or "").strip()
+    if not q:
+        return ""
+
+    if conv.document_id:
+        doc = conv.document
+        parts = []
+
+        if (doc.summary or "").strip():
+            parts.append(f"SUMMARY:\n{doc.summary.strip()}")
+
+        chunks = retrieve_top_chunks(doc.id, q, k=6)
+        if chunks:
+            lines = [f"[C{ch.idx}] {ch.content}" for ch in chunks]
+            parts.append("RELEVANT EXCERPTS:\n" + "\n\n".join(lines))
+
+        return "\n\n".join(parts).strip()
+
+    if conv.notebook_id:
+        nb = conv.notebook
+        parts = [_notebook_context(nb)]
+
+        scored_all = []
+        for d in nb.documents.all():
+            for ch in retrieve_top_chunks(d.id, q, k=3):
+                scored_all.append((ch.score, d.file_name, ch.idx, ch.content))
+
+        scored_all.sort(key=lambda x: x[0], reverse=True)
+        top = scored_all[:6]
+        if top:
+            lines = []
+            for _, fname, idx, content in top:
+                lines.append(f"[C{idx}] ({fname}) {content}")
+            parts.append("RELEVANT EXCERPTS:\n" + "\n\n".join(lines))
+
+        return "\n\n".join([p for p in parts if p]).strip()
+
+    return ""
+
+def _unified_system() -> str:
+    return (
+        "You are a helpful assistant.\n"
+        "You may receive optional CONTEXT that can help answer the user's question.\n"
+        "If you use any factual details from RELEVANT EXCERPTS, cite them like [C12].\n"
+        "If the question is general or not covered by the context, answer from general knowledge without citations.\n"
+        "Do NOT mention documents, files, context, excerpts, or citations rules explicitly.\n"
+        "Always reply in the same language as the USER QUESTION.\n"
     )
-    return ql.startswith(general_starts)
-
-def _is_doc_relevant(doc: Document, question: str) -> bool:
-    if _looks_general_question(question):
-        return False
-    chunks = retrieve_top_chunks(doc.id, question, k=3)
-    if not chunks:
-        return False
-    top = chunks[0]
-    if top.score < 4:
-        return False
-    if top.matched_terms < 2:
-        return False
-    return True
-
 
 
 def answer_chat(conv: Conversation, user_question: str) -> str:
-    """
-    ตอบคำถามจาก conversation นี้ โดยยึด context ของ document/notebook
-    """
     q = (user_question or "").strip()
     if not q:
         return ""
 
-    mode = "general"
-
-    if conv.document_id:
-        doc = conv.document
-        if _is_doc_relevant(doc, q):
-            mode = "doc"
-            context = _document_context_for_question(doc, q)
-        else:
-            context = ""  # general mode ไม่ต้องส่ง context
-    else:
-        # notebook chat ส่วนใหญ่ผู้ใช้คาดหวังอิงไฟล์
-        nb = conv.notebook
-        mode = "doc"
-        context = _notebook_context(nb)
-
-
     q_lang = detect_language(q)
-    lang = q_lang if q_lang in ("th", "en") else _pick_lang(context, q)
+    lang = q_lang if q_lang in ("th", "en") else "th"
 
     lang_instruction = "Write in Thai." if lang == "th" else "Write in English."
 
-    # history: เอาเฉพาะท้าย ๆ
     history = _build_history(conv)
+    context = _build_context(conv, q)
 
-    if mode == "doc":
-        system = (
-            "You are a helpful assistant for a document analyzer app.\n"
-            "You must answer primarily using the provided CONTEXT.\n"
-            "If you use facts from excerpts, cite them like [C12].\n"
-            "Do NOT mention 'based on the file' or 'according to the document' explicitly.\n"
-            "Always reply in the same language as the USER QUESTION.\n"
-            "If the answer is not in the context, say you don't have enough information "
-            "and suggest what to upload or what to ask next.\n"
-        )
+    system = _unified_system()
 
-        user = f"""
-    {lang_instruction}
+    user = f"""
+{lang_instruction}
 
-    CONTEXT:
-    {_trim(context, max_chars=MAX_CONTEXT_CHARS)}
+CONTEXT (optional):
+{_trim(context, max_chars=MAX_CONTEXT_CHARS) if context else "(none)"}
 
-    USER QUESTION:
-    {q}
+USER QUESTION:
+{q}
+""".strip()
 
-    Rules:
-    - If you use excerpt facts, cite [C#].
-    - If missing info in context, say what's missing and suggest next step.
-    """
-    else:
-        system = (
-            "You are a helpful assistant.\n"
-            "Reply naturally like a normal chat.\n"
-            "Do NOT mention documents, context, excerpts, or citations.\n"
-            "Always reply in the same language as the USER QUESTION.\n"
-        )
-        user = f"""
-    {lang_instruction}
+    if history:
+        hist_text = "\n".join([f"{m['role'].upper()}: {m['content']}" for m in history])
+        user += f"\n\nCHAT HISTORY (most recent):\n{_trim(hist_text, max_chars=4000)}"
 
-    USER QUESTION:
-    {q}
-    """
-
-
-    try:
-        # ถ้าอยาก include history แบบ messages หลายอัน:
-        # เราจะรวม history เป็นข้อความเดียวเพื่อใช้ generate_text ที่รับ system+user
-        # (โครง llm_client ของคุณรองรับ system+user เท่านั้น)
-        if history:
-            hist_text = "\n".join([f"{m['role'].upper()}: {m['content']}" for m in history])
-            user = f"{user}\n\nCHAT HISTORY (most recent):\n{_trim(hist_text, max_chars=4000)}"
-        print("Q:", repr(q))
-        print("Q_LANG:", q_lang)
-        print("LANG:", lang)
-
-        return (generate_text(system, user, owner=conv.owner, purpose="chat") or "").strip()
-    except LLMError as e:
-        raise
-
-
+    return (generate_text(system, user, owner=conv.owner, purpose="chat") or "").strip()
 
 def answer_chat_stream(conv: Conversation, user_question: str, should_stop=None):
     q = (user_question or "").strip()
     if not q:
-        yield ""
         return
 
-    mode = "general"
-
-    if conv.document_id:
-        doc = conv.document
-        if _is_doc_relevant(doc, q):
-            mode = "doc"
-            context = _document_context_for_question(doc, q)
-        else:
-            context = ""  # general mode ไม่ต้องส่ง context
-    else:
-        # notebook chat ส่วนใหญ่ผู้ใช้คาดหวังอิงไฟล์
-        nb = conv.notebook
-        mode = "doc"
-        context = _notebook_context(nb)
-
-
     q_lang = detect_language(q)
-    lang = q_lang if q_lang in ("th", "en") else _pick_lang(context, q)
+    lang = q_lang if q_lang in ("th", "en") else "th"
     lang_instruction = "Write in Thai." if lang == "th" else "Write in English."
 
     history = _build_history(conv)
+    context = _build_context(conv, q)
 
-    if mode == "doc":
-        system = (
-            "You are a helpful assistant for a document analyzer app.\n"
-            "You must answer primarily using the provided CONTEXT.\n"
-            "If you use facts from excerpts, cite them like [C12].\n"
-            "Do NOT mention 'based on the file' or 'according to the document' explicitly.\n"
-            "Always reply in the same language as the USER QUESTION.\n"
-            "If the answer is not in the context, say you don't have enough information "
-            "and suggest what to upload or what to ask next.\n"
-        )
+    system = _unified_system()
 
-        user = f"""
-    {lang_instruction}
+    user = f"""
+{lang_instruction}
 
-    CONTEXT:
-    {_trim(context, max_chars=MAX_CONTEXT_CHARS)}
+CONTEXT (optional):
+{_trim(context, max_chars=MAX_CONTEXT_CHARS) if context else "(none)"}
 
-    USER QUESTION:
-    {q}
-
-    Rules:
-    - If you use excerpt facts, cite [C#].
-    - If missing info in context, say what's missing and suggest next step.
-    """
-    else:
-        system = (
-            "You are a helpful assistant.\n"
-            "Reply naturally like a normal chat.\n"
-            "Do NOT mention documents, context, excerpts, or citations.\n"
-            "Always reply in the same language as the USER QUESTION.\n"
-        )
-        user = f"""
-    {lang_instruction}
-
-    USER QUESTION:
-    {q}
-    """
-
+USER QUESTION:
+{q}
+""".strip()
     if history:
         hist_text = "\n".join([f"{m['role'].upper()}: {m['content']}" for m in history])
-        user = f"{user}\n\nCHAT HISTORY (most recent):\n{_trim(hist_text, max_chars=4000)}"
-        print("Q:", repr(q))
-        print("Q_LANG:", q_lang)
-        print("LANG:", lang)
+        user += f"\n\nCHAT HISTORY (most recent):\n{_trim(hist_text, max_chars=4000)}"
+
     for t in generate_text_stream(system, user, owner=conv.owner, purpose="chat_stream"):
         if should_stop and should_stop():
             return
         yield t
-        
