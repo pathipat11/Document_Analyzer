@@ -12,6 +12,8 @@ from documents.services.analysis.classifier import classify_text
 from documents.services.storage.file_organizer import move_document_file_to_type_folder
 from documents.models import DocumentChunk
 from documents.services.pipeline.chunking import chunk_text
+from documents.services.search.search_index import update_document_search_vector
+
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +67,7 @@ def process_document(doc: Document) -> Document:
 
         doc.save(update_fields=fields)
 
+        update_document_search_vector(doc.id)
         move_document_file_to_type_folder(doc)
         return doc
 

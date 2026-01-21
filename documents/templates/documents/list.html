@@ -14,8 +14,8 @@
         </div>
 
         <div class="flex items-center gap-2">
-            <div class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm
-                  dark:border-slate-800 dark:bg-slate-900">
+            <div
+                class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-900">
                 Selected <span id="selectedCount" class="font-semibold">0</span>
             </div>
 
@@ -25,28 +25,98 @@
         </div>
     </div>
 
-    <!-- Filter + Export -->
-    <form method="get" class="flex flex-wrap items-center justify-between gap-3">
-        <div class="flex flex-wrap items-center gap-2">
-            <label class="text-sm font-medium">Type</label>
-            <select name="type" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm
-                     dark:border-slate-700 dark:bg-slate-900">
-                <option value="">All</option>
-                {% for t in type_choices %}
-                <option value="{{ t }}" {% if dtype == t %}selected{% endif %}>{{ t }}</option>
-                {% endfor %}
-            </select>
+    <!-- Filter + Search + Export (Improved UI) -->
+    <form method="get" class="card p-4 sm:p-5">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-3">
 
-            <button class="btn-outline" type="submit">Apply</button>
-            {% if dtype %}
-            <a class="btn-outline" href="{% url 'documents:list' %}">Reset</a>
-            {% endif %}
+            <!-- Left: filters -->
+            <div class="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:flex-1">
+
+                <!-- Keyword -->
+                <div>
+                    <label class="text-xs font-medium text-slate-600 dark:text-slate-300">Keyword</label>
+                    <div
+                        class="mt-1 flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus-within:ring-2 focus-within:ring-blue-200 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:ring-blue-500/20">
+                        <input id="qInput" name="q" value="{{ q }}" placeholder="Search documents…"
+                            class="w-full bg-transparent outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500" />
+                        {% if q %}
+                        <a href="{% url 'documents:list' %}"
+                            class="select-none rounded-lg px-2 py-1 text-xs text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                            title="Clear keyword">✕</a>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Type -->
+                <div>
+                    <label class="text-xs font-medium text-slate-600 dark:text-slate-300">Type</label>
+                    <div
+                        class="mt-1 flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus-within:ring-2 focus-within:ring-blue-200 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:ring-blue-500/20">
+                        <select id="typeSelect" name="type"
+                            class="w-full bg-transparent outline-none dark:text-slate-100">
+                            <option value="">All</option>
+                            {% for t in type_choices %}
+                            <option value="{{ t }}" {% if dtype == t %}selected{% endif %}>{{ t }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <!-- From -->
+                <div>
+                    <label class="text-xs font-medium text-slate-600 dark:text-slate-300">From</label>
+                    <div
+                        class="mt-1 flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus-within:ring-2 focus-within:ring-blue-200 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:ring-blue-500/20">
+                        <input id="fromInput" type="date" name="from" value="{{ date_from }}"
+                            class="w-full bg-transparent outline-none dark:text-slate-100" />
+                    </div>
+                </div>
+
+                <!-- To -->
+                <div>
+                    <label class="text-xs font-medium text-slate-600 dark:text-slate-300">To</label>
+                    <div
+                        class="mt-1 flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus-within:ring-2 focus-within:ring-blue-200 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:ring-blue-500/20">
+                        <input id="toInput" type="date" name="to" value="{{ date_to }}"
+                            class="w-full bg-transparent outline-none dark:text-slate-100" />
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right: actions -->
+            <div class="flex flex-wrap items-center justify-end gap-2 lg:shrink-0 lg:pl-2">
+                <button class="btn" type="submit">
+                    Apply
+                </button>
+
+                {% if q or dtype or date_from or date_to %}
+                <a class="btn-outline" href="{% url 'documents:list' %}">
+                    Reset
+                </a>
+                {% endif %}
+
+                <div class="hidden h-8 w-px bg-slate-200 dark:bg-slate-800 sm:block"></div>
+
+                <a class="btn-outline"
+                    href="{% url 'documents:export_csv' %}{% if dtype %}?type={{ dtype }}{% endif %}">
+                    Export CSV
+                </a>
+            </div>
+
         </div>
 
-        <a class="btn-outline" href="{% url 'documents:export_csv' %}{% if dtype %}?type={{ dtype }}{% endif %}">
-            Export CSV
-        </a>
+        <!-- Helper text -->
+        <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
+            <div class="flex items-center gap-2">
+                <span>Tip: Type your keyword and the system will perform a live search.</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <span>Press Enter to use it or search keyword the system will search automatically.</span>
+            </div>
+        </div>
     </form>
+
 
     <!-- Combine form + table -->
     <form id="combineForm" method="post" action="{% url 'documents:combined_create' %}">
@@ -62,9 +132,14 @@
                     Select all
                 </label>
 
-                <span class="text-xs text-slate-500 dark:text-slate-400">
-                    {{ page_obj.paginator.count }} documents
-                </span>
+                <div class="flex items-center gap-2">
+                    <span id="docsCount" class="text-xs text-slate-500 dark:text-slate-400">
+                        {{ page_obj.paginator.count }} documents
+                    </span>
+                    <span id="searchStatus" class="text-xs text-slate-400 dark:text-slate-500 hidden">
+                        • Searching…
+                    </span>
+                </div>
             </div>
 
             <div class="overflow-x-auto">
@@ -81,7 +156,8 @@
                         </tr>
                     </thead>
 
-                    <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+                    <tbody id="docsTbody" data-search-url="{% url 'documents:search_api' %}"
+                        class="divide-y divide-slate-200 dark:divide-slate-800">
                         {% for d in docs %}
                         <tr class="hover:bg-slate-50/70 dark:hover:bg-slate-900/30">
                             <td class="px-4 py-3">
@@ -94,18 +170,28 @@
                                 {% if d.has_chat %}
                                 <span class="mt-0.5 select-none text-xs">💬</span>
                                 {% endif %}
+
                                 <a class="font-medium text-blue-700 hover:underline dark:text-blue-300"
                                     href="{% url 'documents:detail' d.pk %}">
                                     {{ d.file_name }}
                                 </a>
+
                                 <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">
                                     {{ d.char_count }} chars
                                 </div>
+
+                                {% if q and d.snippet %}
+                                <div class="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+                                    {{ d.snippet }}
+                                </div>
+                                {% endif %}
+
                             </td>
 
+
                             <td class="px-4 py-3">
-                                <span class="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-medium
-                                 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                                <span
+                                    class="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                                     {{ d.document_type }}
                                 </span>
                             </td>
@@ -144,16 +230,18 @@
             </div>
 
             {% if page_obj and page_obj.paginator.num_pages > 1 %}
-            <div class="flex items-center justify-between border-t border-slate-200 px-4 py-3
-                      dark:border-slate-800">
+            <div class="flex items-center justify-between border-t border-slate-200 px-4 py-3 dark:border-slate-800">
                 <div class="text-xs text-slate-500 dark:text-slate-400">
                     Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
                 </div>
 
                 <div class="flex items-center gap-2">
                     {% if page_obj.has_previous %}
-                    <a class="btn-outline"
-                        href="?page={{ page_obj.previous_page_number }}{% if dtype %}&type={{ dtype }}{% endif %}">
+                    <a class="btn-outline" href="?page={{ page_obj.previous_page_number }}
+                                {% if dtype %}&type={{ dtype }}{% endif %}
+                                {% if q %}&q={{ q|urlencode }}{% endif %}
+                                {% if date_from %}&from={{ date_from }}{% endif %}
+                                {% if date_to %}&to={{ date_to }}{% endif %}">
                         Prev
                     </a>
                     {% else %}
@@ -161,8 +249,11 @@
                     {% endif %}
 
                     {% if page_obj.has_next %}
-                    <a class="btn-outline"
-                        href="?page={{ page_obj.next_page_number }}{% if dtype %}&type={{ dtype }}{% endif %}">
+                    <a class="btn-outline" href="?page={{ page_obj.next_page_number }}
+                                {% if dtype %}&type={{ dtype }}{% endif %}
+                                {% if q %}&q={{ q|urlencode }}{% endif %}
+                                {% if date_from %}&from={{ date_from }}{% endif %}
+                                {% if date_to %}&to={{ date_to }}{% endif %}">
                         Next
                     </a>
                     {% else %}
@@ -196,10 +287,13 @@
 </div>
 
 <script>
-    const checkboxes = Array.from(document.querySelectorAll(".docCheckbox"));
     const selectAll = document.getElementById("selectAll");
     const combineBtn = document.getElementById("combineBtn");
     const selectedCount = document.getElementById("selectedCount");
+
+    function getCheckboxes() {
+        return Array.from(document.querySelectorAll(".docCheckbox"));
+    }
 
     function setDisabled(disabled) {
         combineBtn.disabled = disabled;
@@ -208,6 +302,7 @@
     }
 
     function updateDeleteButtons() {
+        const checkboxes = getCheckboxes();
         const selectedIds = new Set(checkboxes.filter(cb => cb.checked).map(cb => cb.value));
         document.querySelectorAll(".deleteBtn").forEach(btn => {
             const id = btn.getAttribute("data-delete-for");
@@ -220,6 +315,7 @@
     }
 
     function updateState() {
+        const checkboxes = getCheckboxes();
         const checked = checkboxes.filter(cb => cb.checked).length;
         if (selectedCount) selectedCount.textContent = String(checked);
 
@@ -240,15 +336,25 @@
         updateDeleteButtons();
     }
 
+    document.addEventListener("change", (e) => {
+        const t = e.target;
+        if (!(t instanceof HTMLElement)) return;
+        if (t.classList.contains("docCheckbox")) updateState();
+    });
+
     if (selectAll) {
         selectAll.addEventListener("change", () => {
             const val = selectAll.checked;
-            checkboxes.forEach(cb => cb.checked = val);
+            getCheckboxes().forEach(cb => cb.checked = val);
             updateState();
         });
     }
 
-    checkboxes.forEach(cb => cb.addEventListener("change", updateState));
     updateState();
+
+    window.__refreshCombineState = updateState;
 </script>
+
+<script src="/static/js/search.js"></script>
+
 {% endblock %}

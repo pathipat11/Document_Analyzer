@@ -2,6 +2,8 @@ import os
 from django.conf import settings
 from django.db import models
 from django.core.exceptions import ValidationError
+from django.contrib.postgres.search import SearchVectorField
+from django.contrib.postgres.indexes import GinIndex
 from django.utils.timezone import now
 
 def upload_to_document(instance, filename):
@@ -36,8 +38,16 @@ class Document(models.Model):
     processed_at = models.DateTimeField(null=True, blank=True)
 
     document_type = models.CharField(max_length=50, default="other")
+    
+    search_vector = SearchVectorField(null=True, blank=True)
 
     uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            GinIndex(fields=["search_vector"], name="doc_search_vector_gin"),
+        ]
+
     def __str__(self):
         return self.file_name
 
@@ -68,7 +78,6 @@ class Conversation(models.Model):
         related_name="conversations",
     )
 
-    # target: เลือกอย่างใดอย่างหนึ่ง
     document = models.ForeignKey(
         "Document",
         null=True,
@@ -88,7 +97,6 @@ class Conversation(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def clean(self):
-        # บังคับ XOR: ต้องมี document หรือ notebook อย่างใดอย่างหนึ่งเท่านั้น
         has_doc = self.document_id is not None
         has_nb = self.notebook_id is not None
         if has_doc == has_nb:

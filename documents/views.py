@@ -7,12 +7,15 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.core.cache import cache
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.contrib.postgres.search import SearchQuery, SearchRank, SearchHeadline
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods, require_POST
+from django.views.decorators.http import require_http_methods, require_POST, require_GET
 from django.http import JsonResponse, HttpResponse, StreamingHttpResponse
 from django.core.paginator import Paginator
 from django.utils import timezone
-from django.db.models import Q, Exists, OuterRef
+from django.utils.dateparse import parse_date
+from django.db.models import Q, Exists, OuterRef, Value, F
+from django.db.models.functions import Coalesce
 from urllib.parse import urlencode, quote
 
 from documents.services.llm.token_ledger import get_all_status
@@ -89,10 +92,41 @@ def document_detail(request, pk: int):
 @login_required
 def document_list(request):
     dtype = (request.GET.get("type") or "").strip().lower()
+    q = (request.GET.get("q") or "").strip()
+    date_from = parse_date(request.GET.get("from") or "")
+    date_to = parse_date(request.GET.get("to") or "")
 
-    qs = Document.objects.filter(owner=request.user).order_by("-uploaded_at")
+    qs = Document.objects.filter(owner=request.user)
+
+    # filters
     if dtype:
         qs = qs.filter(document_type=dtype)
+    if date_from:
+        qs = qs.filter(uploaded_at__date__gte=date_from)
+    if date_to:
+        qs = qs.filter(uploaded_at__date__lte=date_to)
+
+    if q:
+        query = SearchQuery(q, search_type="websearch", config="simple")
+
+        filename_q = Q(file_name__icontains=q)
+
+        qs = qs.filter(
+            Q(search_vector=query) | filename_q
+        ).annotate(
+            rank=Coalesce(SearchRank(F("search_vector"), query), Value(0.0)),
+            snippet=SearchHeadline(
+                Coalesce("extracted_text", Value("")),
+                query,
+                config="simple",
+                start_sel="",
+                stop_sel="",
+                max_words=35,
+                min_words=15,
+            ),
+        ).order_by("-rank", "-uploaded_at")
+    else:
+        qs = qs.order_by("-uploaded_at")
 
     qs = qs.annotate(
         has_chat=Exists(
@@ -100,10 +134,7 @@ def document_list(request):
         )
     )
 
-    # Optional: count messages per doc (enable if you want)
-    # qs = qs.annotate(chat_messages=Count("conversations__messages", distinct=True))
-
-    paginator = Paginator(qs, 10)
+    paginator = Paginator(qs, 4)
     page_number = request.GET.get("page") or 1
     page_obj = paginator.get_page(page_number)
 
@@ -114,6 +145,10 @@ def document_list(request):
         "dtype": dtype,
         "type_choices": type_choices,
         "page_obj": page_obj,
+
+        "q": q,
+        "date_from": date_from.isoformat() if date_from else "",
+        "date_to": date_to.isoformat() if date_to else "",
     })
 
 @login_required
@@ -151,6 +186,80 @@ def reprocess_document(request, pk: int):
     doc = get_object_or_404(Document, pk=pk, owner=request.user)
     process_document(doc)
     return redirect("documents:detail", pk=doc.pk)
+
+@login_required
+@require_GET
+def search_documents_api(request):
+    q = (request.GET.get("q") or "").strip()
+    dtype = (request.GET.get("type") or "").strip().lower()
+    date_from = parse_date(request.GET.get("from") or "")
+    date_to = parse_date(request.GET.get("to") or "")
+    page = int(request.GET.get("page") or 1)
+
+    qs = Document.objects.filter(owner=request.user)
+
+    if dtype:
+        qs = qs.filter(document_type=dtype)
+    if date_from:
+        qs = qs.filter(uploaded_at__date__gte=date_from)
+    if date_to:
+        qs = qs.filter(uploaded_at__date__lte=date_to)
+
+    if q:
+        query = SearchQuery(q, search_type="websearch", config="simple")
+
+        filename_q = Q(file_name__icontains=q)
+
+        qs = qs.filter(
+            Q(search_vector=query) | filename_q
+        ).annotate(
+            rank=Coalesce(SearchRank(F("search_vector"), query), Value(0.0)),
+            snippet=SearchHeadline(
+                Coalesce("extracted_text", Value("")),
+                query,
+                config="simple",
+                start_sel="",
+                stop_sel="",
+                max_words=35,
+                min_words=15,
+            ),
+        ).order_by("-rank", "-uploaded_at")
+    else:
+        qs = qs.order_by("-uploaded_at")
+
+    # has_chat
+    qs = qs.annotate(
+        has_chat=Exists(
+            Conversation.objects.filter(owner=request.user, document_id=OuterRef("pk"))
+        )
+    )
+
+    paginator = Paginator(qs, 4)
+    page_obj = paginator.get_page(page)
+
+    items = []
+    for d in page_obj.object_list:
+        items.append({
+            "id": d.id,
+            "file_name": d.file_name,
+            "document_type": d.document_type,
+            "word_count": d.word_count,
+            "char_count": d.char_count,
+            "uploaded_at": timezone.localtime(d.uploaded_at).strftime("%-d %b %Y %H:%M"),
+            "has_chat": bool(getattr(d, "has_chat", False)),
+            "snippet": (getattr(d, "snippet", "") or "").strip(),
+            "detail_url": reverse("documents:detail", kwargs={"pk": d.pk}),
+            "chat_url": reverse("documents:chat_document", kwargs={"pk": d.pk}),
+        })
+
+    return JsonResponse({
+        "ok": True,
+        "page": page_obj.number,
+        "num_pages": page_obj.paginator.num_pages,
+        "count": page_obj.paginator.count,
+        "items": items,
+    })
+
 
 def _ascii_filename_fallback(name: str) -> str:
     """
