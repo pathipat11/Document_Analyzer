@@ -6,12 +6,13 @@ const fromInput = document.getElementById("fromInput");
 const toInput = document.getElementById("toInput");
 const docsCount = document.getElementById("docsCount");
 const searchStatus = document.getElementById("searchStatus");
+const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]')?.value || "";
 
 if (qInput && typeSelect && fromInput && toInput && tbody) {
     let timer = null;
     let controller = null;
     let lastSig = "";
-    let livePage = getPageFromUrl(); // ✅ ใช้ page จาก URL
+    let livePage = getPageFromUrl();
 
     function getPageFromUrl() {
         const u = new URL(window.location.href);
@@ -22,7 +23,6 @@ if (qInput && typeSelect && fromInput && toInput && tbody) {
     function setUrlParams(params) {
         const u = new URL(window.location.href);
 
-        // เคลียร์ก่อน แล้วค่อย set ใหม่ตาม params (กัน query เก่าค้าง)
         ["q", "type", "from", "to", "page"].forEach(k => u.searchParams.delete(k));
 
         Object.entries(params).forEach(([k, v]) => {
@@ -31,7 +31,6 @@ if (qInput && typeSelect && fromInput && toInput && tbody) {
             }
         });
 
-        // ไม่ reload แค่เปลี่ยน URL
         window.history.replaceState({}, "", u.toString());
     }
 
@@ -51,43 +50,44 @@ if (qInput && typeSelect && fromInput && toInput && tbody) {
             : "";
 
         return `
-      <tr class="hover:bg-slate-50/70 dark:hover:bg-slate-900/30">
-        <td class="px-4 py-3">
-          <input type="checkbox" name="doc_ids" value="${d.id}"
-            class="docCheckbox h-4 w-4 rounded border-slate-300 dark:border-slate-700"
-            data-doc-id="${d.id}">
-        </td>
+        <tr class="hover:bg-slate-50/70 dark:hover:bg-slate-900/30">
+            <td class="px-4 py-3">
+            <input type="checkbox" name="doc_ids" value="${d.id}"
+                class="docCheckbox h-4 w-4 rounded border-slate-300 dark:border-slate-700"
+                data-doc-id="${d.id}">
+            </td>
 
-        <td class="px-4 py-3">
-          ${bubble}
-          <a class="font-medium text-blue-700 hover:underline dark:text-blue-300" href="${d.detail_url}">
-            ${esc(d.file_name || "")}
-          </a>
-          <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            ${esc(String(d.char_count ?? 0))} chars
-          </div>
-          ${snippet}
-        </td>
+            <td class="px-4 py-3">
+            ${bubble}
+            <a class="font-medium text-blue-700 hover:underline dark:text-blue-300" href="${d.detail_url}">
+                ${esc(d.file_name || "")}
+            </a>
+            <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                ${esc(String(d.char_count ?? 0))} chars
+            </div>
+            ${snippet}
+            </td>
 
-        <td class="px-4 py-3">${chip}</td>
-        <td class="px-4 py-3">${esc(String(d.word_count ?? 0))}</td>
-        <td class="px-4 py-3 text-slate-600 dark:text-slate-300">${esc(d.uploaded_at || "")}</td>
+            <td class="px-4 py-3">${chip}</td>
+            <td class="px-4 py-3">${esc(String(d.word_count ?? 0))}</td>
+            <td class="px-4 py-3 text-slate-600 dark:text-slate-300">${esc(d.uploaded_at || "")}</td>
 
-        <td class="px-4 py-3">
-          <div class="flex items-center gap-2">
-            <a class="btn-outline" href="${d.chat_url}">${chatLabel}</a>
-          </div>
-        </td>
+            <td class="px-4 py-3">
+            <div class="flex items-center gap-2">
+                <a class="btn-outline" href="${d.chat_url}">${chatLabel}</a>
+            </div>
+            </td>
 
-        <td class="px-4 py-3">
-          <button type="button"
-            class="deleteBtn btn-outline text-red-400 dark:text-red-300 opacity-50 cursor-not-allowed"
-            title="Delete disabled in live-search view (reload page to delete)">
-            Delete
-          </button>
-        </td>
-      </tr>
-    `;
+            <td class="px-4 py-3">
+                <button type="button"
+                class="deleteBtn btn-outline text-red-400 dark:text-red-300"
+                data-doc-id="${d.id}"
+                data-delete-url="${d.delete_url}">
+                Delete
+                </button>
+            </td>
+        </tr>
+        `;
     }
 
     function getParams() {
@@ -96,7 +96,7 @@ if (qInput && typeSelect && fromInput && toInput && tbody) {
             type: typeSelect.value.trim(),
             from: fromInput.value,
             to: toInput.value,
-            page: livePage, // ✅ ใช้หน้าจาก URL/สถานะ
+            page: livePage,
         };
     }
 
@@ -132,6 +132,12 @@ if (qInput && typeSelect && fromInput && toInput && tbody) {
             const data = await res.json();
             if (!data.ok) throw new Error("Bad response");
 
+            if ((data.items || []).length === 0 && (data.page || 1) > 1) {
+                livePage = (data.page || 1) - 1;
+                lastSig = "";
+                return runSearch();
+            }
+
             const items = data.items || [];
 
             tbody.innerHTML = items.length
@@ -161,10 +167,67 @@ if (qInput && typeSelect && fromInput && toInput && tbody) {
     }
 
     function scheduleSearch({ resetPage = false } = {}) {
-        if (resetPage) livePage = 1; // ✅ เปลี่ยน filter = กลับไปหน้า 1
+        if (resetPage) livePage = 1;
         clearTimeout(timer);
         timer = setTimeout(runSearch, 250);
     }
+
+    document.addEventListener("click", async (e) => {
+        const btn = e.target.closest(".deleteBtn");
+        if (!btn) return;
+        e.preventDefault();
+
+        const url = btn.dataset.deleteUrl;
+        const id = btn.dataset.docId;
+
+        if (!url) return;
+
+        if (btn.disabled) return;
+
+        const ok = confirm("Delete this document? This cannot be undone.");
+        if (!ok) return;
+
+        const row = btn.closest("tr");
+
+        try {
+            const res = await fetch(url, {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": csrfToken,
+                    "X-Requested-With": "XMLHttpRequest",
+                },
+                body: new URLSearchParams({
+                    page: String(livePage || 1),
+                    dtype: (typeSelect.value || "").trim(),
+                }),
+            });
+
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+            const data = await res.json();
+            if (!data.ok) throw new Error("Bad response");
+
+            if (row) row.remove();
+            if (typeof window.__refreshCombineState === "function") window.__refreshCombineState();
+
+            if (docsCount) {
+                const m = docsCount.textContent.match(/(\d+)/);
+                if (m) docsCount.textContent = `${Math.max(0, parseInt(m[1], 10) - 1)} documents`;
+            }
+
+            if (typeof window.showToast === "function") {
+                window.showToast(`Deleted: ${data.deleted_name || "document"}`, "success");
+            }
+
+            lastSig = "";
+            runSearch();
+        } catch (err) {
+            console.error(err);
+            if (typeof window.showToast === "function") {
+                window.showToast("Delete failed. Please try again.", "error");
+            }
+        }
+    });
 
     qInput.addEventListener("input", () => scheduleSearch({ resetPage: true }));
     typeSelect.addEventListener("change", () => scheduleSearch({ resetPage: true }));

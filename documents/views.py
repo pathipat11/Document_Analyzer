@@ -134,7 +134,7 @@ def document_list(request):
         )
     )
 
-    paginator = Paginator(qs, 4)
+    paginator = Paginator(qs, 10)
     page_number = request.GET.get("page") or 1
     page_obj = paginator.get_page(page_number)
 
@@ -169,6 +169,9 @@ def delete_document(request, pk: int):
         pass
 
     doc.delete()
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return JsonResponse({"ok": True, "deleted_id": pk, "deleted_name": file_name})
+
     messages.success(request, f"Deleted: {file_name}")
 
     if dtype or page:
@@ -234,7 +237,7 @@ def search_documents_api(request):
         )
     )
 
-    paginator = Paginator(qs, 4)
+    paginator = Paginator(qs, 10)
     page_obj = paginator.get_page(page)
 
     items = []
@@ -250,6 +253,7 @@ def search_documents_api(request):
             "snippet": (getattr(d, "snippet", "") or "").strip(),
             "detail_url": reverse("documents:detail", kwargs={"pk": d.pk}),
             "chat_url": reverse("documents:chat_document", kwargs={"pk": d.pk}),
+            "delete_url": reverse("documents:delete", kwargs={"pk": d.pk}),
         })
 
     return JsonResponse({

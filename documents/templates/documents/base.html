@@ -242,11 +242,41 @@
             };
         });
 
+        window.showToast = function (text, type = "success") {
+            let container = document.getElementById("toast-container");
+            if (!container) {
+                container = document.createElement("div");
+                container.id = "toast-container";
+                container.className = "fixed right-4 top-4 z-50 flex flex-col gap-3";
+                document.body.appendChild(container);
+            }
+
+            const toast = document.createElement("div");
+            toast.className = `toast animate-slide-in rounded-xl border p-3 text-sm ${type === "success"
+                    ? "border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200"
+                    : type === "error"
+                        ? "border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200"
+                        : type === "warning"
+                            ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
+                            : "border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200"
+                }`;
+            toast.textContent = text;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.transition = "opacity 0.4s ease, transform 0.4s ease";
+                toast.style.opacity = "0";
+                toast.style.transform = "translateY(-6px) scale(0.98)";
+                setTimeout(() => toast.remove(), 400);
+            }, 2500);
+        };
     </script>
     <script src="/static/js/usage.js"></script>
 </head>
 
-<body class="h-full bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100" data-usage-url="{% url 'documents:usage_api' %}">
+<body class="h-full bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100"
+    data-usage-url="{% url 'documents:usage_api' %}">
     <header class="border-b border-slate-200 bg-white/70 backdrop-blur dark:border-slate-800 dark:bg-slate-900/60">
         <div class="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
             <a href="{% url 'documents:list' %}">

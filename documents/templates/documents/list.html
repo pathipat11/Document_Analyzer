@@ -25,14 +25,11 @@
         </div>
     </div>
 
-    <!-- Filter + Search + Export (Improved UI) -->
     <form method="get" class="card p-4 sm:p-5">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-3">
 
-            <!-- Left: filters -->
             <div class="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:flex-1">
 
-                <!-- Keyword -->
                 <div>
                     <label class="text-xs font-medium text-slate-600 dark:text-slate-300">Keyword</label>
                     <div
@@ -47,7 +44,6 @@
                     </div>
                 </div>
 
-                <!-- Type -->
                 <div>
                     <label class="text-xs font-medium text-slate-600 dark:text-slate-300">Type</label>
                     <div
@@ -62,7 +58,6 @@
                     </div>
                 </div>
 
-                <!-- From -->
                 <div>
                     <label class="text-xs font-medium text-slate-600 dark:text-slate-300">From</label>
                     <div
@@ -72,7 +67,6 @@
                     </div>
                 </div>
 
-                <!-- To -->
                 <div>
                     <label class="text-xs font-medium text-slate-600 dark:text-slate-300">To</label>
                     <div
@@ -84,7 +78,6 @@
 
             </div>
 
-            <!-- Right: actions -->
             <div class="flex flex-wrap items-center justify-end gap-2 lg:shrink-0 lg:pl-2">
                 <button class="btn" type="submit">
                     Apply
@@ -106,7 +99,6 @@
 
         </div>
 
-        <!-- Helper text -->
         <div class="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
             <div class="flex items-center gap-2">
                 <span>Tip: Type your keyword and the system will perform a live search.</span>
@@ -118,7 +110,6 @@
     </form>
 
 
-    <!-- Combine form + table -->
     <form id="combineForm" method="post" action="{% url 'documents:combined_create' %}">
         {% csrf_token %}
 
@@ -210,11 +201,8 @@
                             </td>
 
                             <td class="px-4 py-3">
-                                {# ✅ no nested form: submit to delete form outside #}
-                                <button type="submit" form="deleteForm-{{ d.id }}"
-                                    class="deleteBtn btn-outline text-red-400 dark:text-red-300"
-                                    data-delete-for="{{ d.id }}"
-                                    onclick="return confirm('Delete this document? This cannot be undone.');">
+                                <button type="button" class="deleteBtn btn-outline text-red-400 dark:text-red-300"
+                                    data-doc-id="{{ d.id }}" data-delete-url="{% url 'documents:delete' d.pk %}">
                                     Delete
                                 </button>
                             </td>
@@ -270,20 +258,6 @@
             {% endif %}
         </div>
     </form>
-
-    {# ✅ IMPORTANT: delete forms must be OUTSIDE combineForm (no nested forms) #}
-    {% for d in docs %}
-    <form id="deleteForm-{{ d.id }}" method="post" action="{% url 'documents:delete' d.pk %}">
-        {% csrf_token %}
-        {% if dtype %}
-        <input type="hidden" name="dtype" value="{{ dtype }}">
-        {% endif %}
-        {% if page_obj %}
-        <input type="hidden" name="page" value="{{ page_obj.number }}">
-        {% endif %}
-    </form>
-    {% endfor %}
-
 </div>
 
 <script>
@@ -305,7 +279,7 @@
         const checkboxes = getCheckboxes();
         const selectedIds = new Set(checkboxes.filter(cb => cb.checked).map(cb => cb.value));
         document.querySelectorAll(".deleteBtn").forEach(btn => {
-            const id = btn.getAttribute("data-delete-for");
+            const id = btn.getAttribute("data-doc-id");
             const disabled = selectedIds.has(id);
             btn.disabled = disabled;
             btn.classList.toggle("opacity-50", disabled);
