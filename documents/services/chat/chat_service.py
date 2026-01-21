@@ -88,7 +88,7 @@ def _build_context(conv: Conversation, question: str) -> str:
 
         chunks = retrieve_top_chunks(doc.id, q, k=6)
         if chunks:
-            lines = [f"[C{ch.idx}] {ch.content}" for ch in chunks]
+            lines = [f"[D{doc.id}-C{ch.idx}] {ch.content}" for ch in chunks]
             parts.append("RELEVANT EXCERPTS:\n" + "\n\n".join(lines))
 
         return "\n\n".join(parts).strip()
@@ -100,29 +100,37 @@ def _build_context(conv: Conversation, question: str) -> str:
         scored_all = []
         for d in nb.documents.all():
             for ch in retrieve_top_chunks(d.id, q, k=3):
-                scored_all.append((ch.score, d.file_name, ch.idx, ch.content))
+                scored_all.append((ch.score, d.id, d.file_name, ch.idx, ch.content))
 
         scored_all.sort(key=lambda x: x[0], reverse=True)
         top = scored_all[:6]
         if top:
             lines = []
-            for _, fname, idx, content in top:
-                lines.append(f"[C{idx}] ({fname}) {content}")
+            for _, doc_id, fname, idx, content in top:
+                lines.append(f"[D{doc_id}-C{idx}] ({fname}) {content}")
             parts.append("RELEVANT EXCERPTS:\n" + "\n\n".join(lines))
 
         return "\n\n".join([p for p in parts if p]).strip()
 
     return ""
 
-def _unified_system() -> str:
+def _system(has_source: bool) -> str:
+    if has_source:
+        return (
+            "You are a helpful assistant.\n"
+            "You may receive optional CONTEXT extracted from the user's document/notebook.\n"
+            "Use CONTEXT as the primary source of truth.\n"
+            "If you use any factual details from RELEVANT EXCERPTS, cite them like [D12-C3].\n"
+            "If the answer is not supported by the CONTEXT, say you don't have enough information.\n"
+            "Do NOT mention documents, files, context, or excerpts explicitly.\n"
+            "Always reply in the same language as the USER QUESTION.\n"
+        )
     return (
         "You are a helpful assistant.\n"
-        "You may receive optional CONTEXT that can help answer the user's question.\n"
-        "If you use any factual details from RELEVANT EXCERPTS, cite them like [C12].\n"
-        "If the question is general or not covered by the context, answer from general knowledge without citations.\n"
-        "Do NOT mention documents, files, context, excerpts, or citations rules explicitly.\n"
+        "Answer naturally.\n"
         "Always reply in the same language as the USER QUESTION.\n"
     )
+
 
 
 def answer_chat(conv: Conversation, user_question: str) -> str:
@@ -138,10 +146,16 @@ def answer_chat(conv: Conversation, user_question: str) -> str:
     history = _build_history(conv)
     context = _build_context(conv, q)
 
-    system = _unified_system()
+    has_source = bool(conv.document_id or conv.notebook_id)
+    system = _system(has_source)
+    
+    if has_source and not context:
+        system += "If there is no CONTEXT, reply that you don't have enough information.\n"
 
     user = f"""
-{lang_instruction}
+user = f"{lang_instruction}\n\nUSER QUESTION:\n{q}".strip()
+if context:
+    user = f"{lang_instruction}\n\nCONTEXT:\n{_trim(context, max_chars=MAX_CONTEXT_CHARS)}\n\nUSER QUESTION:\n{q}".strip()
 
 CONTEXT (optional):
 {_trim(context, max_chars=MAX_CONTEXT_CHARS) if context else "(none)"}
@@ -168,7 +182,8 @@ def answer_chat_stream(conv: Conversation, user_question: str, should_stop=None)
     history = _build_history(conv)
     context = _build_context(conv, q)
 
-    system = _unified_system()
+    has_source = bool(conv.document_id or conv.notebook_id)
+    system = _system(has_source)
 
     user = f"""
 {lang_instruction}
