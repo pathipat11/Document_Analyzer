@@ -77,22 +77,31 @@
                 <div>
                     <label class="block text-sm font-medium mb-1">Phone</label>
                     {{ pform.phone }}
+                    {% if pform.phone.errors %}<div class="mt-1 text-xs text-red-600">{{ pform.phone.errors }}</div>
+                    {% endif %}
                 </div>
                 <div>
                     <label class="block text-sm font-medium mb-1">Organization</label>
                     {{ pform.organization }}
+                    {% if pform.organization.errors %}<div class="mt-1 text-xs text-red-600">
+                        {{ pform.organization.errors }}</div>
+                    {% endif %}
                 </div>
                 <div>
                     <label class="block text-sm font-medium mb-1">Job title</label>
                     {{ pform.job_title }}
                 </div>
-                <div>
+                <div class="sm:col-span-2">
                     <label class="block text-sm font-medium mb-1">Avatar</label>
                     {{ pform.avatar }}
+                    {% if pform.avatar.errors %}<div class="mt-1 text-xs text-red-600">{{ pform.avatar.errors }}</div>
+                    {% endif %}
                 </div>
                 <div class="sm:col-span-2">
                     <label class="block text-sm font-medium mb-1">Bio</label>
                     {{ pform.bio }}
+                    {% if pform.bio.errors %}<div class="mt-1 text-xs text-red-600">{{ pform.bio.errors }}</div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -127,6 +136,9 @@
                 <div>
                     <label class="block text-sm font-medium mb-1">Date of birth</label>
                     {{ pform.date_of_birth }}
+                    {% if pform.date_of_birth.errors %}<div class="mt-1 text-xs text-red-600">{{
+                        pform.date_of_birth.errors }}</div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -184,4 +196,39 @@
         </div>
     </div>
 </details>
+<script>
+    (function () {
+        const fileInput = document.querySelector('input[type="file"][name$="avatar"]');
+        const preview = document.getElementById("avatarPreview");
+        const previewText = document.getElementById("avatarPreviewText");
+        const current = document.getElementById("avatarCurrent");
+        const fallback = document.getElementById("avatarFallback");
+
+        if (!fileInput || !preview || !previewText) return;
+
+        let lastUrl = null;
+
+        fileInput.addEventListener("change", () => {
+            const f = fileInput.files?.[0];
+            if (lastUrl) URL.revokeObjectURL(lastUrl);
+
+            if (!f) {
+                preview.classList.add("hidden");
+                previewText.classList.add("hidden");
+                if (current) current.classList.remove("opacity-50");
+                if (fallback) fallback.classList.remove("opacity-50");
+                lastUrl = null;
+                return;
+            }
+
+            lastUrl = URL.createObjectURL(f);
+            preview.src = lastUrl;
+            preview.classList.remove("hidden");
+            previewText.classList.remove("hidden");
+
+            if (current) current.classList.add("opacity-50");
+            if (fallback) fallback.classList.add("opacity-50");
+        });
+    })();
+</script>
 {% endblock %}

@@ -19,7 +19,10 @@ TEXTAREA_CLASS = BASE_INPUT_CLASS + " resize-none"
 SELECT_CLASS = BASE_INPUT_CLASS
 DATE_CLASS = BASE_INPUT_CLASS
 
-CHECKBOX_CLASS = "h-4 w-4 rounded border-slate-300 dark:border-slate-700"
+CHECKBOX_CLASS = (
+    "h-4 w-4 rounded border-slate-300 text-blue-600 "
+    "focus:ring-2 focus:ring-blue-500/40 dark:border-slate-700"
+)
 FILE_CLASS = (
     "block w-full text-sm text-slate-700 dark:text-slate-200 "
     "file:mr-3 file:rounded-lg file:border-0 "
