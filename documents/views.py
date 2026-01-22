@@ -155,9 +155,32 @@ def document_list(request):
 @require_POST
 def delete_document(request, pk: int):
     doc = get_object_or_404(Document, pk=pk, owner=request.user)
-    page = (request.POST.get("page") or "").strip()
 
+    page = (request.POST.get("page") or "").strip()
     dtype = (request.POST.get("dtype") or "").strip().lower()
+
+    combined_qs = doc.combined_in.filter(owner=request.user).order_by("-created_at")
+    if combined_qs.exists():
+        combined_items = [
+            {"id": x.id, "title": x.title}
+            for x in combined_qs[:10]
+        ]
+
+        msg = "This document is used in a Combined Summary. Please delete the combined summary first."
+
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "code": "IN_COMBINED",
+                    "error": msg,
+                    "combined": combined_items,
+                },
+                status=409,
+            )
+
+        messages.warning(request, msg)
+        return redirect("documents:list")
 
     file_field = doc.file
     file_name = doc.file_name
@@ -169,6 +192,7 @@ def delete_document(request, pk: int):
         pass
 
     doc.delete()
+
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
         return JsonResponse({"ok": True, "deleted_id": pk, "deleted_name": file_name})
 
@@ -375,11 +399,86 @@ def combined_detail(request, pk: int):
     docs = cs.documents.all().order_by("-uploaded_at")
     return render(request, "documents/combined_detail.html", {"cs": cs, "docs": docs})
 
-
 @login_required
 def combined_list(request):
-    items = CombinedSummary.objects.filter(owner=request.user).order_by("-created_at")
+    items = CombinedSummary.objects.filter(owner=request.user).order_by("-created_at").annotate(
+        has_chat=Exists(
+            Conversation.objects.filter(owner=request.user, notebook_id=OuterRef("pk"))
+        )
+    )
     return render(request, "documents/combined_list.html", {"items": items})
+
+@login_required
+@require_POST
+def delete_combined(request, pk: int):
+    cs = get_object_or_404(CombinedSummary, pk=pk, owner=request.user)
+    title = cs.title
+
+    cs.delete()
+
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return JsonResponse({"ok": True, "deleted_id": pk, "deleted_title": title})
+
+    messages.success(request, f"Deleted combined summary: {title}")
+    return redirect("documents:combined_list")
+
+@login_required
+@require_GET
+def search_combined_api(request):
+    q = (request.GET.get("q") or "").strip()
+    sort = (request.GET.get("sort") or "newest").strip()
+    page = int(request.GET.get("page") or 1)
+
+    qs = CombinedSummary.objects.filter(owner=request.user)
+
+    if q:
+        qs = qs.filter(
+            Q(title__icontains=q) |
+            Q(combined_summary__icontains=q)
+        )
+
+    if sort == "oldest":
+        qs = qs.order_by("created_at")
+    elif sort == "title":
+        qs = qs.order_by("title", "-created_at")
+    elif sort == "docs":
+        qs = qs.order_by("-doc_count", "-created_at")
+    elif sort == "words":
+        qs = qs.order_by("-total_words", "-created_at")
+    else:
+        qs = qs.order_by("-created_at")
+
+    qs = qs.annotate(
+        has_chat=Exists(
+            Conversation.objects.filter(owner=request.user, notebook_id=OuterRef("pk"))
+        )
+    )
+
+    paginator = Paginator(qs, 10)
+    page_obj = paginator.get_page(page)
+
+    items = []
+    for x in page_obj.object_list:
+
+        items.append({
+            "id": x.id,
+            "title": x.title,
+            "doc_count": x.doc_count,
+            "total_words": x.total_words,
+            "created_at": timezone.localtime(x.created_at).strftime("%-d %b %Y %H:%M"),
+            "has_chat": bool(getattr(x, "has_chat", False)),
+            "detail_url": reverse("documents:combined_detail", kwargs={"pk": x.pk}),
+            "chat_url": reverse("documents:chat_notebook", kwargs={"pk": x.pk}),
+            "delete_url": reverse("documents:combined_delete", kwargs={"pk": x.pk}),
+        })
+
+    return JsonResponse({
+        "ok": True,
+        "page": page_obj.number,
+        "num_pages": page_obj.paginator.num_pages,
+        "count": page_obj.paginator.count,
+        "items": items,
+    })
 
 @login_required
 def chat_document(request, pk: int):

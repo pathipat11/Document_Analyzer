@@ -8,7 +8,7 @@
         <dl class="mt-4 space-y-2 text-sm">
             <div class="flex justify-between gap-3">
                 <dt class="text-slate-500 dark:text-slate-400">File</dt>
-                <dd class="font-medium text-right">{{ doc.file_name }}</dd>
+                <dd class="font-medium text-right truncate">{{ doc.file_name }}</dd>
             </div>
             <div class="flex justify-between gap-3">
                 <dt class="text-slate-500 dark:text-slate-400">Ext</dt>
@@ -16,7 +16,7 @@
             </div>
             <div class="flex justify-between gap-3">
                 <dt class="text-slate-500 dark:text-slate-400">MIME</dt>
-                <dd class="text-right">{{ doc.mime_type }}</dd>
+                <dd class="text-right truncate">{{ doc.mime_type }}</dd>
             </div>
             <div class="flex justify-between gap-3">
                 <dt class="text-slate-500 dark:text-slate-400">Type</dt>
@@ -32,7 +32,7 @@
             </div>
             <div class="flex justify-between gap-3">
                 <dt class="text-slate-500 dark:text-slate-400">Uploaded</dt>
-                <dd class="text-right">{{ doc.uploaded_at }}</dd>
+                <dd class="text-right">{{ doc.uploaded_at|date:"j M Y H:i" }}</dd>
             </div>
         </dl>
 
@@ -40,7 +40,10 @@
             <a class="btn-outline" href="{% url 'documents:file' doc.pk %}" target="_blank" rel="noopener">
                 View File
             </a>
-            <a class="btn-outline" href="{% url 'documents:reprocess' doc.pk %}">Reprocess</a>
+            <form method="post" action="{% url 'documents:reprocess' doc.pk %}">
+                {% csrf_token %}
+                <button class="btn-outline" type="submit">Reprocess</button>
+            </form>
             <a class="btn" href="{% url 'documents:chat_document' doc.pk %}">Chat about this document</a>
         </div>
     </div>
@@ -59,20 +62,69 @@
 
         <div class="card p-6">
             <h2 class="text-lg font-semibold">Status</h2>
-        
-            <div class="mt-2 text-sm">
-                <div>
-                    <span class="text-slate-500">Status:</span>
-                    <span class="font-medium">{{ doc.status }}</span>
+
+            <div class="mt-3 flex items-start justify-between gap-4">
+                <div class="min-w-0">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm text-slate-500 dark:text-slate-400">Status</span>
+
+                        {% with s=doc.status|default_if_none:"" %}
+                        {% if s == "done" %}
+                        <span
+                            class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200">
+                            ✓ Done
+                        </span>
+                        {% elif s == "processing" %}
+                        <span
+                            class="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-950/40 dark:text-blue-200">
+                            <span
+                                class="inline-block h-3 w-3 animate-spin rounded-full border-2 border-blue-300 border-t-blue-700 dark:border-blue-800 dark:border-t-blue-200"></span>
+                            Processing
+                        </span>
+                        {% elif s == "queued" %}
+                        <span
+                            class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                            • Queued
+                        </span>
+                        {% elif s == "failed" or doc.error %}
+                        <span
+                            class="inline-flex items-center gap-1 rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 dark:bg-red-950/40 dark:text-red-200">
+                            ! Failed
+                        </span>
+                        {% else %}
+                        <span
+                            class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                            {{ s|default:"unknown" }}
+                        </span>
+                        {% endif %}
+                        {% endwith %}
+                    </div>
+
+                    <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                        {% if doc.error %}
+                        The system encountered an error while processing this document.
+                        {% elif doc.status == "done" %}
+                        Extraction and summary are ready.
+                        {% elif doc.status == "processing" %}
+                        Please wait—this may take a moment depending on file size.
+                        {% elif doc.status == "queued" %}
+                        This document is queued and will start processing soon.
+                        {% else %}
+                        Current state: {{ doc.status|default:"unknown" }}.
+                        {% endif %}
+                    </p>
                 </div>
-        
-                {% if doc.error %}
-                <div class="mt-2 rounded-lg bg-red-50 p-3 text-red-700 dark:bg-red-950/40 dark:text-red-200">
-                    {{ doc.error }}
-                </div>
-                {% endif %}
             </div>
+
+            {% if doc.error %}
+            <div class="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700
+                dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">
+                <div class="font-semibold">Error</div>
+                <div class="mt-1 whitespace-pre-wrap">{{ doc.error }}</div>
+            </div>
+            {% endif %}
         </div>
+
         <div class="card p-6">
             <h2 class="text-lg font-semibold">Preview</h2>
             <pre

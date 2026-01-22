@@ -18,8 +18,7 @@
                 class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-900">
                 Selected <span id="selectedCount" class="font-semibold">0</span>
             </div>
-
-            <button id="combineBtn" class="btn" type="submit" form="combineForm">
+            <button id="combineBtn" class="btn opacity-50 cursor-not-allowed" type="submit" form="combineForm" disabled>
                 Combine
             </button>
         </div>
@@ -91,7 +90,7 @@
 
                 <div class="hidden h-8 w-px bg-slate-200 dark:bg-slate-800 sm:block"></div>
 
-                <a class="btn-outline"
+                <a class="btn-outline" data-no-global-loader="1"
                     href="{% url 'documents:export_csv' %}{% if dtype %}?type={{ dtype }}{% endif %}">
                     Export CSV
                 </a>

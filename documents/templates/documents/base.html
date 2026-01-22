@@ -85,7 +85,8 @@
                 const a = e.target.closest("a");
                 if (!a) return;
 
-                // ignore new tab / downloads / anchors / modifiers
+                if (a.dataset.noGlobalLoader === "1") return;
+                
                 const href = a.getAttribute("href") || "";
                 if (!href || href.startsWith("#")) return;
                 if (a.hasAttribute("download")) return;

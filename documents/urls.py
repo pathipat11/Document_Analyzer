@@ -14,12 +14,15 @@ urlpatterns = [
     path("documents/<int:pk>/file/", views.document_file, name="file"),
 
     path("api/search/", views.search_documents_api, name="search_api"),
+    path("api/combined/search/", views.search_combined_api, name="combined_search_api"),
 
     path("export/csv/", views.export_documents_csv, name="export_csv"),
 
     path("combined/", views.combined_list, name="combined_list"),
     path("combined/create/", views.create_combined_summary, name="combined_create"),
     path("combined/<int:pk>/", views.combined_detail, name="combined_detail"),
+    path("combined/<int:pk>/delete/", views.delete_combined, name="combined_delete"),
+    
     
     path("chat/document/<int:pk>/", views.chat_document, name="chat_document"),
     path("chat/notebook/<int:pk>/", views.chat_notebook, name="chat_notebook"),

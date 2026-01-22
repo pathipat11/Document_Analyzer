@@ -2,34 +2,136 @@
 {% block title %}Combined Summaries · Document Analyzer{% endblock %}
 
 {% block content %}
-<div class="flex items-end justify-between">
-    <div>
-        <h1 class="text-xl font-semibold">Combined Summaries</h1>
-        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Saved combined summaries created from multiple documents.
-        </p>
+<div class="space-y-5">
+
+    <div class="flex items-end justify-between gap-4">
+        <div>
+            <h1 class="text-xl font-semibold">Combined Summaries</h1>
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                Search, sort, and manage your combined notebooks.
+            </p>
+        </div>
+        <a class="btn-outline" href="{% url 'documents:list' %}">Back to documents</a>
     </div>
-    <a class="btn-outline" href="{% url 'documents:list' %}">Back to documents</a>
+
+    <div class="card p-4 sm:p-5">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:gap-3">
+            <div class="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:flex-1">
+
+                <div>
+                    <label class="text-xs font-medium text-slate-600 dark:text-slate-300">Keyword</label>
+                    <div
+                        class="mt-1 flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus-within:ring-2 focus-within:ring-blue-200 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:ring-blue-500/20">
+                        <input id="combinedQ" placeholder="Search combined summaries…"
+                            class="w-full bg-transparent outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500" />
+                        <button id="combinedClear" type="button"
+                            class="hidden select-none rounded-lg px-2 py-1 text-xs text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                            title="Clear keyword">✕</button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-xs font-medium text-slate-600 dark:text-slate-300">Sort</label>
+                    <div
+                        class="mt-1 flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus-within:ring-2 focus-within:ring-blue-200 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:ring-blue-500/20">
+                        <select id="combinedSort" class="w-full bg-transparent outline-none dark:text-slate-100">
+                            <option value="newest">Newest</option>
+                            <option value="oldest">Oldest</option>
+                            <option value="title">Title</option>
+                            <option value="docs">Doc count</option>
+                            <option value="words">Total words</option>
+                        </select>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="flex items-center justify-end gap-2 lg:shrink-0">
+                <span id="combinedCount" class="text-xs text-slate-500 dark:text-slate-400">
+                    {{ items|length }} items
+                </span>
+                <span id="combinedStatus" class="text-xs text-slate-400 dark:text-slate-500 hidden">• Searching…</span>
+            </div>
+        </div>
+    </div>
+
+
+    <div class="card overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-50 text-slate-600 dark:bg-slate-950 dark:text-slate-300">
+                    <tr>
+                        <th class="px-4 py-3 text-left font-medium">Title</th>
+                        <th class="px-4 py-3 text-left font-medium">Docs</th>
+                        <th class="px-4 py-3 text-left font-medium">Words</th>
+                        <th class="px-4 py-3 text-left font-medium">Created</th>
+                        <th class="px-4 py-3 text-left font-medium">Chat</th>
+                        <th class="px-4 py-3 text-left font-medium">Actions</th>
+                    </tr>
+                </thead>
+
+                <tbody id="combinedTbody" data-search-url="{% url 'documents:combined_search_api' %}"
+                    class="divide-y divide-slate-200 dark:divide-slate-800">
+
+                    {% for x in items %}
+                    <tr class="hover:bg-slate-50/70 dark:hover:bg-slate-900/30">
+                        <td class="px-4 py-3 min-w-60">
+                            <div class="flex items-center gap-2 min-w-0">
+                                {% if x.has_chat %}
+                                <span class="mt-0.5 select-none text-xs">💬</span>
+                                {% endif %}
+
+                                <a class="font-medium text-blue-700 hover:underline dark:text-blue-300 truncate"
+                                    href="{% url 'documents:combined_detail' x.pk %}">
+                                    {{ x.title }}
+                                </a>
+                            </div>
+                        </td>
+
+                        <td class="px-4 py-3 whitespace-nowrap">
+                            <span
+                                class="inline-flex items-center rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                                {{ x.doc_count }} docs
+                            </span>
+                        </td>
+
+                        <td class="px-4 py-3">
+                            {{ x.total_words }}
+                        </td>
+
+                        <td class="px-4 py-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                            {{ x.created_at|date:"j M Y H:i" }}
+                        </td>
+
+                        <td class="px-4 py-3">
+                            <a class="btn-outline" href="{% url 'documents:chat_notebook' x.pk %}">
+                                {% if x.has_chat %}Continue{% else %}Chat{% endif %}
+                            </a>
+                        </td>
+
+                        <td class="px-4 py-3">
+                            <button type="button" class="combinedDeleteBtn btn-outline text-red-400 dark:text-red-300"
+                                data-delete-url="{% url 'documents:combined_delete' x.pk %}"
+                                data-title="{{ x.title|escapejs }}">
+                                Delete
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+
+                </tbody>
+            </table>
+        </div>
+
+        <div
+            class="border-t border-slate-200 px-4 py-3 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
+            Tip: Use keyword search + sorting to manage large notebooks faster.
+        </div>
+
+        <div id="combinedPager" class="border-t border-slate-200 px-4 py-3 dark:border-slate-800 hidden"></div>
+    </div>
+
 </div>
 
-<div class="card mt-5 overflow-hidden">
-    {% if items %}
-    <div class="divide-y divide-slate-200 dark:divide-slate-800">
-        {% for x in items %}
-        <a class="block px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-900"
-            href="{% url 'documents:combined_detail' x.pk %}">
-            <div class="flex items-center justify-between gap-4">
-                <div class="font-semibold">{{ x.title }}</div>
-                <div class="text-xs text-slate-500 dark:text-slate-400">{{ x.created_at }}</div>
-            </div>
-            <div class="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                {{ x.doc_count }} docs • {{ x.total_words }} words
-            </div>
-        </a>
-        {% endfor %}
-    </div>
-    {% else %}
-    <div class="p-6 text-sm text-slate-500 dark:text-slate-400">No combined summaries yet.</div>
-    {% endif %}
-</div>
+<script src="/static/js/combined_list.js"></script>
 {% endblock %}

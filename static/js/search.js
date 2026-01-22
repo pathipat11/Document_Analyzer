@@ -201,11 +201,24 @@ if (qInput && typeSelect && fromInput && toInput && tbody) {
                     dtype: (typeSelect.value || "").trim(),
                 }),
             });
+            let data = null;
+            try { data = await res.json(); } catch { }
 
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            if (!res.ok) {
+                if (res.status === 409 && data?.code === "IN_COMBINED") {
+                    const titles = (data.combined || []).map(x => x.title).slice(0, 3);
+                    const extra = titles.length ? ` Used in: ${titles.join(", ")}${(data.combined || []).length > 3 ? "…" : ""}` : "";
+                    if (typeof window.showToast === "function") {
+                        window.showToast((data.error || "Cannot delete this document.") + extra, "warning");
+                    }
+                    return;
+                }
 
-            const data = await res.json();
-            if (!data.ok) throw new Error("Bad response");
+                throw new Error(`HTTP ${res.status}`);
+            }
+
+            if (!data?.ok) throw new Error("Bad response");
+
 
             if (row) row.remove();
             if (typeof window.__refreshCombineState === "function") window.__refreshCombineState();
