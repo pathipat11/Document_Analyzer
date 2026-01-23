@@ -145,7 +145,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 const tz = data.timezone || "";
                 scheduleResetRefresh(data.reset_at);
 
-                // mobile (ของคุณใช้ hook นี้อยู่แล้ว)
                 if (typeof window.__setMobileUsageUI === "function") {
                     window.__setMobileUsageUI({ chat, upload, resetText, tz });
                 }
@@ -178,7 +177,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     refreshUsage({ reason: "init", force: true });
 
-    pill.addEventListener("mouseenter", () => refreshUsage({ reason: "hover" }));
+    dd.addEventListener("mouseenter", () => refreshUsage({ reason: "hover" }));
+    
     pill.addEventListener("click", () => refreshUsage({ reason: "click" }));
 
     document.addEventListener("visibilitychange", () => {

@@ -161,6 +161,9 @@ if (qInput && typeSelect && fromInput && toInput && tbody) {
         } catch (err) {
             if (err.name === "AbortError") return;
             console.error(err);
+            if (typeof window.showToast === "function") {
+                window.showToast("Search failed. Please try again.", "error");
+            }
         } finally {
             if (searchStatus) searchStatus.classList.add("hidden");
         }
