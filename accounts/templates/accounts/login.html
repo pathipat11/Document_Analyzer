@@ -33,12 +33,18 @@
 
         <button class="btn w-full" type="submit">Login</button>
     </form>
-
-    <p class="mt-4 text-sm text-slate-500 dark:text-slate-400">
-        No account?
-        <a class="text-blue-700 hover:underline dark:text-blue-300" href="{% url 'accounts:register' %}">
-            Register
-        </a>
-    </p>
+    <div class="flex justify-between items-center">
+        <div class="mt-4 text-sm text-slate-500 dark:text-slate-400">
+            No account?
+            <a class="text-blue-700 hover:underline dark:text-blue-300" href="{% url 'accounts:register' %}">
+                Register
+            </a>
+        </div>
+        <div class="mt-4 text-sm text-slate-500 dark:text-slate-400">
+            <a class="text-sm text-blue-700 hover:underline dark:text-blue-300" href="{% url 'accounts:password_reset' %}">
+                Forgot password?
+            </a>
+        </div>
+    </div>
 </div>
 {% endblock %}

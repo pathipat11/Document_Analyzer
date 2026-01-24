@@ -238,6 +238,11 @@
                         display: none;
                     }
                 </style>
+                {% else %}
+                <a class="px-3 py-2 text-sm font-medium rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100
+                dark:text-slate-300 dark:hover:text-white dark:hover:bg-slate-800/60
+                {% if request.resolver_match.url_name == 'login' %} bg-slate-100 text-slate-900 dark:bg-slate-800/70 dark:text-white {% endif %}"
+                    href="{% url 'accounts:login' %}">Login</a>
                 {% endif %}
             </div>
         </div>

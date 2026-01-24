@@ -10,14 +10,17 @@
         {% csrf_token %}
 
         <div>
-            <label class="block text-sm font-medium mb-1">Username</label>
+            <label class="block text-sm font-medium mb-1">Username <span class="ml-0.5 text-red-600"
+                    aria-hidden="true">*</span></label>
             {{ form.username }}
             {% if form.username.errors %}<div class="mt-1 text-xs text-red-600">{{ form.username.errors }}</div>
             {% endif %}
         </div>
 
         <div>
-            <label class="block text-sm font-medium mb-1">Email</label>
+            <label class="block text-sm font-medium mb-1">
+                Email
+                <span class="ml-0.5 text-red-600" aria-hidden="true">*</span></label>
             {{ form.email }}
             {% if form.email.errors %}<div class="mt-1 text-xs text-red-600">{{ form.email.errors }}</div>{% endif %}
         </div>
@@ -58,14 +61,18 @@
         </div>
 
         <div>
-            <label class="block text-sm font-medium mb-1">Password</label>
+            <label class="block text-sm font-medium mb-1">
+                Password
+                <span class="ml-0.5 text-red-600" aria-hidden="true">*</span></label>
             {{ form.password1 }}
             {% if form.password1.errors %}<div class="mt-1 text-xs text-red-600">{{ form.password1.errors }}</div>
             {% endif %}
         </div>
 
         <div>
-            <label class="block text-sm font-medium mb-1">Confirm password</label>
+            <label class="block text-sm font-medium mb-1">
+                Confirm password
+                <span class="ml-0.5 text-red-600" aria-hidden="true">*</span></label>
             {{ form.password2 }}
             {% if form.password2.errors %}<div class="mt-1 text-xs text-red-600">{{ form.password2.errors }}</div>
             {% endif %}

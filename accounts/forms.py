@@ -1,6 +1,6 @@
 from django import forms
 from django.contrib.auth import get_user_model
-from django.contrib.auth.forms import UserCreationForm, PasswordChangeForm, AuthenticationForm
+from django.contrib.auth.forms import UserCreationForm, PasswordChangeForm, AuthenticationForm, PasswordResetForm, SetPasswordForm
 from .models import UserProfile
 
 User = get_user_model()
@@ -185,3 +185,17 @@ class StyledAuthenticationForm(AuthenticationForm):
         style_form(self)
         self.fields["username"].widget.attrs.setdefault("placeholder", "Username")
         self.fields["password"].widget.attrs.setdefault("placeholder", "Password")
+
+class StyledPasswordResetForm(PasswordResetForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        style_form(self)
+        self.fields["email"].widget.attrs.setdefault("placeholder", "Email")
+        
+
+class StyledSetPasswordForm(SetPasswordForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        style_form(self)
+        self.fields["new_password1"].widget.attrs.setdefault("placeholder", "New password")
+        self.fields["new_password2"].widget.attrs.setdefault("placeholder", "Confirm new password")
