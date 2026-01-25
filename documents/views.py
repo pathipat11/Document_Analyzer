@@ -30,6 +30,11 @@ from .models import Document, CombinedSummary, Conversation, Message
 def health(request):
     return JsonResponse({"status": "ok"})
 
+def home(request):
+    if request.user.is_authenticated:
+        return redirect("documents:list")
+    return render(request, "documents/home.html", {})
+
 @login_required
 def upload_document(request):
     limits = get_limits()

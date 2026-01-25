@@ -1,0 +1,212 @@
+{% extends "documents/base.html" %}
+{% block title %}Welcome · Document Analyzer{% endblock %}
+
+{% block content %}
+<style>
+    @keyframes floaty {
+
+        0%,
+        100% {
+            transform: translateY(0px);
+        }
+
+        50% {
+            transform: translateY(-10px);
+        }
+    }
+
+    @keyframes blob {
+
+        0%,
+        100% {
+            transform: translate(0, 0) scale(1);
+        }
+
+        33% {
+            transform: translate(12px, -10px) scale(1.05);
+        }
+
+        66% {
+            transform: translate(-10px, 10px) scale(0.98);
+        }
+    }
+
+    .floaty {
+        animation: floaty 4s ease-in-out infinite;
+    }
+
+    .blob {
+        animation: blob 10s ease-in-out infinite;
+        filter: blur(24px);
+        opacity: 0.55;
+    }
+
+    .reveal {
+        opacity: 0;
+        transform: translateY(10px);
+        transition: opacity .6s ease, transform .6s ease;
+    }
+
+    .reveal.is-in {
+        opacity: 1;
+        transform: translateY(0);
+    }
+</style>
+
+<section
+    class="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-8 dark:border-slate-800 dark:bg-slate-900">
+    <!-- Animated blobs -->
+    <div
+        class="pointer-events-none absolute -top-10 -right-10 h-56 w-56 rounded-full bg-blue-400/30 blob dark:bg-blue-500/20">
+    </div>
+    <div
+        class="pointer-events-none absolute -bottom-10 -left-10 h-56 w-56 rounded-full bg-indigo-400/30 blob dark:bg-indigo-500/20">
+    </div>
+
+    <div class="relative grid grid-cols-1 gap-10 md:grid-cols-2 md:items-center">
+        <!-- Left -->
+        <div class="reveal">
+            <div
+                class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300">
+                <span class="h-2 w-2 rounded-full bg-green-500"></span>
+                Document Analyzer
+            </div>
+
+            <h1 class="mt-4 text-3xl font-semibold leading-tight tracking-tight md:text-4xl">
+                Analyze · Summarize · Search · Chat with your documents
+            </h1>
+
+            <p class="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                Document Analyzer is a document management system that helps you upload files, search content,
+                create combined summaries across multiple documents, and chat with your documents (when LLM is enabled).
+            </p>
+
+            <div class="mt-6 grid grid-cols-3 gap-3 text-center">
+                <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950">
+                    <div class="text-lg font-semibold">Upload</div>
+                    <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">PDF · DOCX · TXT · CSV</div>
+                </div>
+                <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950">
+                    <div class="text-lg font-semibold">Search</div>
+                    <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">Fast lookup</div>
+                </div>
+                <div class="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950">
+                    <div class="text-lg font-semibold">Chat</div>
+                    <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">Ask questions</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right -->
+        <div class="reveal">
+            <div
+                class="floaty rounded-3xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-800 dark:bg-slate-950">
+                <div class="flex items-center justify-between">
+                    <div class="text-sm font-semibold">Quick Preview</div>
+                    <div class="text-xs text-slate-500 dark:text-slate-400">Demo UI</div>
+                </div>
+
+                <div class="mt-4 space-y-3">
+                    <div
+                        class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                        <div class="text-xs text-slate-500 dark:text-slate-400">Feature</div>
+                        <div class="mt-1 text-sm font-semibold">Document Library</div>
+                        <div class="mt-2 h-2 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                            <div class="h-full w-2/3 bg-slate-900 dark:bg-slate-200"></div>
+                        </div>
+                    </div>
+
+                    <div
+                        class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                        <div class="text-xs text-slate-500 dark:text-slate-400">Feature</div>
+                        <div class="mt-1 text-sm font-semibold">Combined Summary</div>
+                        <div class="mt-2 flex gap-2">
+                            <span
+                                class="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-200">merge</span>
+                            <span
+                                class="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-200">summarize</span>
+                            <span
+                                class="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-200">export</span>
+                        </div>
+                    </div>
+
+                    <div
+                        class="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                        <div class="text-xs text-slate-500 dark:text-slate-400">Feature</div>
+                        <div class="mt-1 text-sm font-semibold">AI Chat (Optional)</div>
+                        <div class="mt-2 text-xs text-slate-600 dark:text-slate-300">
+                            Streaming · Token budget · Usage monitor
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <p class="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                *This is a landing preview card. After login, you’ll use the real app in the Documents page.
+            </p>
+        </div>
+    </div>
+</section>
+
+<section class="mt-10 grid grid-cols-1 gap-4 md:grid-cols-3">
+    <div
+        class="reveal rounded-3xl border border-slate-200 bg-white p-6 transition hover:-translate-y-0.5 hover:shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div class="text-sm font-semibold">📄 Upload & Manage</div>
+        <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">
+            Manage your documents in one place. View details, open/download files, and delete when needed.
+        </p>
+    </div>
+
+    <div
+        class="reveal rounded-3xl border border-slate-200 bg-white p-6 transition hover:-translate-y-0.5 hover:shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div class="text-sm font-semibold">🔎 Search & Filter</div>
+        <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">
+            Quickly search documents and combined summaries using the built-in search APIs.
+        </p>
+    </div>
+
+    <div
+        class="reveal rounded-3xl border border-slate-200 bg-white p-6 transition hover:-translate-y-0.5 hover:shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div class="text-sm font-semibold">💬 Chat with Documents</div>
+        <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">
+            Ask questions based on document content, with streaming responses and daily usage/token budgets.
+        </p>
+    </div>
+</section>
+
+<section class="mt-10 reveal rounded-3xl border border-slate-200 bg-white p-8 dark:border-slate-800 dark:bg-slate-900">
+    <div class="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+        <div>
+            <h2 class="text-xl font-semibold">How it works</h2>
+            <p class="mt-2 text-sm text-slate-600 dark:text-slate-300">
+                Get started in three simple steps.
+            </p>
+        </div>
+        <div class="flex gap-3">
+            <a class="btn" href="{% url 'accounts:login' %}">Get started</a>
+            <a class="btn-outline" href="{% url 'accounts:register' %}">Register</a>
+        </div>
+    </div>
+
+    <div class="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-800 dark:bg-slate-950">
+            <div class="text-xs text-slate-500 dark:text-slate-400">Step 1</div>
+            <div class="mt-1 text-sm font-semibold">Create an account / Login</div>
+            <div class="mt-2 text-sm text-slate-600 dark:text-slate-300">Sign in to manage your documents.</div>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-800 dark:bg-slate-950">
+            <div class="text-xs text-slate-500 dark:text-slate-400">Step 2</div>
+            <div class="mt-1 text-sm font-semibold">Upload documents</div>
+            <div class="mt-2 text-sm text-slate-600 dark:text-slate-300">Upload and organize your files.</div>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-800 dark:bg-slate-950">
+            <div class="text-xs text-slate-500 dark:text-slate-400">Step 3</div>
+            <div class="mt-1 text-sm font-semibold">Search / Combine / Chat</div>
+            <div class="mt-2 text-sm text-slate-600 dark:text-slate-300">Search, create combined summaries, and chat
+                with your docs.</div>
+        </div>
+    </div>
+</section>
+
+<script src="/static/js/landing.js" defer></script>
+{% endblock %}
