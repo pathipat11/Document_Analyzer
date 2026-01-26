@@ -40,7 +40,7 @@ def logout_view(request):
     if request.method == "POST":
         logout(request)
         messages.info(request, "You have been logged out.")
-        return redirect("accounts:login")
+        return redirect("documents:home")
     return redirect("documents:list")
 
 
