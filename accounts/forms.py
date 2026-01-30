@@ -31,6 +31,11 @@ FILE_CLASS = (
     "dark:file:bg-slate-800 dark:hover:file:bg-slate-700"
 )
 
+def _append_class(widget, extra: str):
+    cur = widget.attrs.get("class", "")
+    if extra not in cur:
+        widget.attrs["class"] = (cur + " " + extra).strip()
+
 def style_form(form):
     """
     Apply consistent Tailwind classes to all fields in a Django form.
@@ -75,6 +80,8 @@ def style_form(form):
 
         # default input
         w.attrs["class"] = BASE_INPUT_CLASS
+        if isinstance(w, forms.PasswordInput) or "password" in name:
+            _append_class(w, "pr-10")
 
     return form
 
