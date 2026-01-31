@@ -3,7 +3,7 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-import logging
+import logging, re
 
 from documents.models import Document
 from .text_extractor import extract_text, extract_text_bytes
@@ -14,8 +14,15 @@ from documents.models import DocumentChunk
 from documents.services.pipeline.chunking import chunk_text
 from documents.services.search.search_index import update_document_search_vector
 
-
 logger = logging.getLogger(__name__)
+_NUL_RE = re.compile(r"\x00+")
+
+def sanitize_text(s: str) -> str:
+    if not s:
+        return ""
+    s = _NUL_RE.sub("", s)
+    s = s.replace("\r\n", "\n").replace("\r", "\n")
+    return s
 
 @transaction.atomic
 def process_document(doc: Document) -> Document:
@@ -28,25 +35,29 @@ def process_document(doc: Document) -> Document:
             file_bytes = f.read()
 
         res = extract_text_bytes(file_bytes, doc.file_ext)
-        doc.extracted_text = res.text
+
+        clean_text = sanitize_text(res.text)
+        
+        doc.extracted_text = clean_text
         doc.word_count = res.word_count
         doc.char_count = res.char_count
 
         # build chunks
         DocumentChunk.objects.filter(document=doc).delete()
-        chunks = chunk_text(res.text, chunk_size=900, overlap=150)
+        chunks = chunk_text(clean_text, chunk_size=900, overlap=150)
+        chunks = [sanitize_text(c) for c in chunks if c] 
         DocumentChunk.objects.bulk_create([
             DocumentChunk(document=doc, idx=i+1, content=c)
             for i, c in enumerate(chunks)
         ])
 
-        if getattr(settings, "ENABLE_LLM", True) and res.text.strip():
+        if getattr(settings, "ENABLE_LLM", True) and clean_text.strip():
             try:
-                s = summarize_text(res.text, owner=doc.owner)
+                s = summarize_text(clean_text, owner=doc.owner)
                 if s:  # ได้ summary จริงค่อยทับ
                     doc.summary = s
 
-                t = classify_text(res.text, owner=doc.owner)
+                t = classify_text(clean_text, owner=doc.owner)
                 if t:
                     doc.document_type = t
 
