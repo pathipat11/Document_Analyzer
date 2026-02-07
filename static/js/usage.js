@@ -120,6 +120,10 @@ document.addEventListener("DOMContentLoaded", () => {
                     headers: { "Accept": "application/json" }
                 });
 
+                if (!res.ok) return;
+                const ct = res.headers.get("content-type") || "";
+                if (!ct.includes("application/json")) return;
+
                 const data = await res.json().catch(() => null);
                 if (!data || !data.ok) return;
 
