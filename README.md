@@ -2,389 +2,383 @@
 
 ## Overview
 
-**Document Intake & Analysis System** is a Django-based document processing and analysis platform designed to ingest, analyze, summarize, and interact with documents using **Large Language Models (LLMs)**. The system supports both **local-first development** (via Ollama) and **cloud-based inference** (via **AWS Bedrock – Claude 3.5**), making it suitable as a learning prototype that can be gradually evolved toward a production-ready architecture.
+**Document Intake & Analysis System** is a Django-based document processing and AI analysis platform designed to ingest, analyze, summarize, search, and interact with documents using Large Language Models (LLMs).
 
-The application focuses on **end-to-end document workflows**:
+The system supports both:
 
-* Secure document upload and storage
-* Text extraction and metadata analysis
-* AI-powered summarization and classification
-* Notebook-style multi-document analysis
-* Real-time, cancelable chat with streaming responses
+* **Local-first development** (Ollama)
+* **Cloud inference via AWS Bedrock (Claude 3.5 Haiku – Inference Profile ARN)**
 
-The project emphasizes **clean service separation**, **bounded context**, and **LLM-safe patterns** such as rate limiting, streaming, and cancellation.
+It is structured as a clean, service-oriented prototype that demonstrates production-style architecture patterns including streaming, cancellation safety, storage abstraction, quota control, and PostgreSQL full-text search.
 
 ---
 
-## Key Features
+# Core Capabilities
 
-### 1. Document Management
+## 1. Secure Document Management
 
-* User authentication (Django auth)
-* Upload **single or multiple documents**
+* Django authentication system
+* Per-user document isolation (ownership enforced in queries)
+* Upload single or multiple files
 * Supported formats:
 
-  * `.txt`, `.csv`, `.pdf` (text-based), `.docx`
+  * `.txt`
+  * `.csv`
+  * `.pdf` (text-based)
+  * `.docx`
 * Upload validation:
 
-  * Maximum number of files per request
-  * Maximum total upload size
-  * Maximum size per file
-* Documents are **private per user** (ownership enforced at query level)
-* Safe delete:
+  * Max file size
+  * Max total upload size
+  * Max files per request
+* Safe deletion:
 
-  * Removes file from storage
+  * Removes file from storage (local or S3)
   * Deletes DB record
-  * Preserves pagination + filters after deletion
+  * Preserves pagination and filters
 
 ---
 
-### 2. Text Extraction & Metadata Analysis
+## 2. Storage Architecture (S3 + Presigned URLs)
 
-For each uploaded document:
+* Django storage abstraction (`FileField` backend)
+* Compatible with local storage or **private Amazon S3 buckets**
+* Secure downloads via **pre-signed URLs**
+* Inline file preview using secure `Content-Disposition`
+* No direct public file exposure
+
+This enables safe cloud deployment without rewriting file logic.
+
+---
+
+## 3. Text Extraction & Metadata Pipeline
+
+Each uploaded document is processed synchronously through a structured pipeline:
 
 * Text extraction by file type
-* Automatic metadata calculation:
+* Word count calculation
+* Character count calculation
+* Extracted text persisted in database
 
-  * Word count
-  * Character count
-* Extracted text is stored for downstream processing
-
-> PDFs are supported only if they contain extractable text (OCR is intentionally excluded in this prototype).
+> OCR is intentionally excluded to keep the prototype focused and deterministic.
 
 ---
 
-### 3. AI-Powered Analysis
+## 4. AI-Powered Analysis
 
-#### 3.1 Document Summarization
+### 4.1 Document Summarization
 
-* Short, concise summary (2–3 sentences)
-* Summary language automatically matches the document language:
+* Short, concise summaries
+* Language-aware output (Thai / English auto-detected)
+* Optimized prompt length for token efficiency
 
-  * Thai / English
-* Designed to be fast and cost-aware
+### 4.2 Automatic Classification
 
-#### 3.2 Document Classification
+Documents are classified into strict single-label types:
 
-* Automatic classification into predefined types:
+* `invoice`
+* `announcement`
+* `policy`
+* `proposal`
+* `report`
+* `research`
+* `resume`
+* `other`
 
-  * `invoice`, `announcement`, `policy`, `proposal`, `report`, `research`, `resume`, `other`
-* Strict single-label output enforced at prompt level
-* Used for filtering and organization in the UI
+Classification is enforced via strict prompt formatting.
 
 ---
 
-### 4. Notebook-Style Combined Summary (Map–Reduce)
+## 5. PostgreSQL Full-Text Search
 
-The system supports **multi-document analysis** via a *notebook* abstraction.
+Advanced search powered by:
 
-#### Creation Options
+* `SearchVector`
+* `SearchQuery` (websearch mode)
+* `SearchRank`
+* `SearchHeadline` (snippet extraction)
 
-* **Auto-combine on upload** (when uploading multiple files)
-* **Manual combine** from the document list
+Features:
 
-#### Processing Strategy
+* Keyword-based search
+* Ranked ordering
+* Extracted text snippets
+* Filename matching
+* Type filtering
+* Date filtering
+* Pagination preserved
 
-* **Map step**: generate per-document lightweight summaries
-* **Reduce step**:
+This enables fast, scalable document lookup without external search engines.
 
-  * Generate a consolidated summary across all documents
-  * Produce an AI-generated notebook title
+---
 
-Each notebook contains:
+## 6. Notebook-Style Multi-Document Analysis (Map–Reduce)
+
+Supports combined analysis across multiple documents.
+
+### Creation Methods
+
+* Auto-combine on multi-file upload
+* Manual combine from document list
+
+### Processing Strategy
+
+**Map Step**:
+
+* Reuse or generate per-document summaries
+
+**Reduce Step**:
+
+* Generate consolidated cross-document summary
+* AI-generated notebook title
+
+Notebook contains:
 
 * Title
 * Combined summary
-* Linked source documents
-* Aggregate metadata (document count, total words)
+* Linked documents
+* Document count
+* Aggregate word count
 
-> The combined summary is intentionally optimized to avoid re-summarizing full documents, reducing token usage while preserving cross-document themes.
-
----
-
-### 5. Smart Chat Routing (Document vs General Chat)
-
-The chat system supports **dual-mode conversation routing**:
-
-* **Document-aware mode** — answers grounded in document content
-* **General chat mode** — behaves like a normal assistant
-
-#### Automatic Mode Detection
-
-* The system evaluates whether a user question is relevant to the document by:
-
-  * Keyword overlap scoring
-  * Stopword filtering (Thai + English)
-  * Minimum relevance thresholds
-
-If a question is deemed **unrelated** to the document, the assistant:
-
-* Responds naturally without referencing files
-* Avoids misleading document-based answers
-
-#### Manual Override (Optional)
-
-Users can explicitly control routing:
-
-* `@doc <question>` → force document-based answering
-* `@chat <question>` → force general chat mode
+Designed for token efficiency (reduce step operates on summaries only).
 
 ---
 
-### 6. Retrieval-Augmented Chat (RAG-lite)
+## 7. Retrieval-Augmented Chat (RAG-lite)
 
-For document-based chat:
+For document-aware chat:
 
-* The system retrieves **top relevant text chunks** per question
-* Chunks are scored using term overlap heuristics
-* Only relevant excerpts are injected into the prompt
-
-Benefits:
-
+* Relevant text chunks are selected per question
+* Heuristic term overlap scoring
+* Only top excerpts injected into prompt
 * Reduced context size
-* Higher factual accuracy
-* Lower token usage
+* Improved factual grounding
 
-Citations are internally tracked using excerpt IDs (e.g. `[C3]`) without exposing file-centric language to users.
-
----
-
-### 7. Streaming Chat with Cancellation (ChatGPT-like UX)
-
-* Server-Sent Events (SSE) token streaming
-* Tokens appear in real time
-* Single-button UX:
-
-  * `Send` → `Cancel`
-
-#### Dual Cancellation Safety
-
-* Client-side abort (`AbortController`)
-* Server-side cancel flag (prevents DB writes)
-
-Guarantees:
-
-* No partial assistant messages saved
-* No unnecessary token usage
-* Clean conversation history
+Prevents unnecessary full-document prompt injection.
 
 ---
 
-### 8. LLM Architecture (Local + Cloud)
+## 8. Smart Chat Routing
 
-LLM access is abstracted behind a unified service layer.
+Dual-mode conversation handling:
 
-#### Supported Providers
+* **Document-aware mode**
+* **General assistant mode**
 
-* **Ollama (local-first)** — development & experimentation
-* **AWS Bedrock (Claude 3.5 Haiku via Inference Profile ARN)** — managed production-style inference
+Automatic routing based on:
 
-Switching providers:
+* Keyword overlap
+* Stopword filtering (Thai + English)
+* Relevance thresholds
 
-```env
-LLM_PROVIDER=bedrock  # or ollama
+Manual override supported:
+
+* `@doc <question>` → force document mode
+* `@chat <question>` → force general mode
+
+Prevents hallucinated document references.
+
+---
+
+## 9. Real-Time Streaming Chat (SSE)
+
+ChatGPT-style streaming using Server-Sent Events.
+
+Features:
+
+* Token-by-token streaming
+* Cancel button
+* Dual cancellation safety:
+
+  * Client abort
+  * Server-side cancellation flag
+* Prevents partial assistant message saves
+* Guarantees clean conversation history
+
+---
+
+## 10. Usage Monitoring & Token Ledger
+
+Per-user daily token budgets:
+
+* Separate budgets for:
+
+  * Chat
+  * Upload / Analysis
+* Remaining quota tracking
+* Automatic reset at midnight (timezone aware)
+* Usage API for UI display
+* Visual usage indicators (low / empty states)
+
+Prevents runaway cost and enforces guardrails.
+
+---
+
+## 11. LLM Architecture (Provider-Agnostic)
+
+Unified client layer:
+
+* `generate_text()`
+* `generate_text_stream()`
+
+Supported providers:
+
+* Ollama (local)
+* AWS Bedrock – Claude 3.5 Haiku (Inference Profile ARN)
+
+Switch via environment:
+
+```
+LLM_PROVIDER=bedrock
 ```
 
-#### Unified LLM Client
+Inference Profile example:
 
-* `generate_text(...)` — synchronous inference
-* `generate_text_stream(...)` — streaming inference
-* Provider-agnostic interface
-* Centralized logging via `LLMCallLog`
+```
+BEDROCK_INFERENCE_PROFILE_ARN=arn:aws:bedrock:region:account:inference-profile/...
+```
 
----
-
-### 9. Guardrails, Quotas & Cost Control
-
-To prevent runaway usage:
-
-* **Daily per-user call limits**
-* **Per-feature token budgets** (chat vs upload/analysis)
-* Preflight token estimation before execution
-
-If limits are exceeded:
-
-* Requests are blocked early
-* Clear error messages are returned (`429`)
-* UI displays remaining quota and reset time
+Design ensures no provider-specific logic leaks into views.
 
 ---
 
-### 10. Storage Abstraction (Local → S3 Ready)
+## 12. CSV Export
 
-* Uses Django storage abstraction (`FileField` + storage backend)
-* File access via streams (no filesystem coupling)
-* Compatible with private Amazon S3 buckets
-* Ready for pre-signed download URLs
+* Export documents as CSV
+* Preserves filtering (type-based export)
+* Includes metadata and summaries
 
 ---
 
-### 11. User Interface & UX
+## 13. User Interface & UX
 
 * Django Templates + Tailwind CSS
-
 * Responsive layout
-
-* Light / Dark mode toggle (persisted client-side)
-
-* Toast notifications for:
-
-  * Upload results
-  * Deletions
-  * LLM quota errors
-
-* Paginated document list (10 items per page)
-
-* Type-based filtering with pagination preservation
+* Landing page with animated hero + typing preview
+* Dark / Light mode toggle
+* Toast notifications
+* Pagination (10 items per page)
+* Preserved filters across navigation
+* Usage dropdown with live refresh
 
 ---
 
-## Architecture
+# Architecture
 
 ```
 documents/
-├── views.py            # HTTP endpoints & access control
-├── models.py           # Document, Notebook, Conversation, Message
+├── views.py
+├── models.py
 ├── services/
-│   ├── upload/          # Validation & limits
-│   ├── pipeline/        # Extract → analyze → persist
-│   ├── analysis/        # Summarizer, classifier, language detection
-│   ├── chat/            # Routing, retrieval, streaming chat
-│   ├── llm/             # Providers, guardrails, token ledger
-│   └── storage/         # File organization (S3-ready)
+│   ├── upload/
+│   ├── pipeline/
+│   ├── analysis/
+│   ├── chat/
+│   ├── llm/
+│   └── storage/
 ```
 
-Design goals:
+Design Principles:
 
 * Thin views
-* Testable services
-* Auditable LLM usage
+* Service-layer isolation
+* Provider abstraction
+* Cancel-safe streaming
+* Token-aware prompt design
+* PostgreSQL-native search
 
 ---
 
-## Processing Flow
+# Processing Flows
 
-### 1. Single Document Upload Flow
+## 1. Upload Flow
 
 ```
-User Upload
-   ↓
-Validation (size / count / type)
-   ↓
-File Storage (Django storage abstraction)
-   ↓
-Text Extraction
-   ↓
-Metadata Analysis (word / char count)
-   ↓
-LLM Summarization + Classification
-   ↓
-Persist Document
-   ↓
-Document Detail View
+Upload
+  ↓
+Validation
+  ↓
+Storage (Local or S3)
+  ↓
+Extraction
+  ↓
+Metadata
+  ↓
+Summarization + Classification
+  ↓
+Persist
 ```
-
-Key characteristics:
-
-* Fully synchronous (prototype-friendly)
-* Each step is isolated in a service layer
-* Safe to migrate into background workers later
 
 ---
 
-### 2. Multiple Documents → Notebook Flow
+## 2. Combined Summary Flow
 
 ```
-Upload or Select Multiple Documents
-   ↓
-Per-Document Summaries (Map step)
-   ↓
-Title Generation
-   ↓
-Consolidated Summary (Reduce step)
-   ↓
-Notebook (CombinedSummary) Created
-   ↓
-Notebook Detail View
+Select Multiple Docs
+  ↓
+Map (per-doc summaries)
+  ↓
+Generate Title
+  ↓
+Reduce (cross-doc summary)
+  ↓
+Create Notebook
 ```
-
-Design notes:
-
-* Map summaries are reused where possible
-* Reduce step operates on summaries, not raw text (cost-efficient)
-* Notebook keeps references to original documents
 
 ---
 
-### 3. Chat (Streaming) Flow
+## 3. Streaming Chat Flow
 
 ```
-Open Chat View
-   ↓
-User Sends Message
-   ↓
-Save User Message
-   ↓
+User Message
+  ↓
+Save User
+  ↓
 Context Assembly
-   ↓
-LLM Streaming Response (SSE)
-   ↓
-Token-by-token UI Update
-   ↓
-Final Assistant Message Saved
+  ↓
+LLM Stream (SSE)
+  ↓
+Token Streaming
+  ↓
+Save Assistant
 ```
 
-If canceled:
+Cancellation Path:
 
 ```
-Cancel Triggered
-   ↓
-Abort Stream (Client)
-   ↓
-Stop Generation (Server)
-   ↓
-No Assistant Message Saved
+Cancel
+  ↓
+Abort Client
+  ↓
+Stop Server
+  ↓
+No Save
 ```
 
 ---
 
-### 4. Smart Chat Routing Flow
+# Tech Stack
 
-```
-User Question
-   ↓
-Heuristic Check (general vs document-related)
-   ↓
-├─ Document-related → Retrieval + Context
-└─ General question → Plain Chat Mode
-   ↓
-LLM Response
-```
-
-This approach:
-
-* Prevents hallucinated file references
-* Improves answer relevance
-* Keeps UX similar to normal chat when appropriate
+* Python
+* Django
+* PostgreSQL
+* AWS Bedrock (Claude 3.5)
+* Ollama
+* Tailwind CSS
+* Server-Sent Events (SSE)
 
 ---
 
-## Tech Stack
+# Future Roadmap
 
-* **Backend:** Python, Django
-* **Database:** PostgreSQL
-* **LLM Providers:** Ollama, AWS Bedrock (Claude 3.5)
-* **Frontend:** Django Templates, Tailwind CSS
-* **Streaming:** Server-Sent Events (SSE)
-* **Auth:** Django Authentication System
-
----
-
-## Future Improvements
-
-* Background jobs (Celery / RQ)
+* Background job queue (Celery / RQ)
 * Embedding-based semantic retrieval
-* Amazon S3 + CloudFront integration
-* Team-based notebooks and sharing
-* Advanced usage analytics
+* Team workspaces
 * Role-based access control
+* Advanced analytics dashboard
+* CloudFront integration
+* Asynchronous processing pipeline
+
+---
+
+This project demonstrates a structured, production-aware AI document workflow with clean separation of concerns and scalable architectural foundations.
