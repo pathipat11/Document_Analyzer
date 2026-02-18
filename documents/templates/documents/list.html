@@ -32,12 +32,12 @@
                 <div>
                     <label class="text-xs font-medium text-slate-600 dark:text-slate-300">Keyword</label>
                     <div
-                        class="mt-1 flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus-within:ring-2 focus-within:ring-blue-200 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:ring-blue-500/20">
+                        class="input-shell">
                         <input id="qInput" name="q" value="{{ q }}" placeholder="Search documents…"
-                            class="w-full bg-transparent outline-none placeholder:text-slate-400 dark:placeholder:text-slate-500" />
+                            class="input-field" />
                         {% if q %}
                         <a href="{% url 'documents:list' %}"
-                            class="select-none rounded-lg px-2 py-1 text-xs text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                            class="input-clear"
                             title="Clear keyword">✕</a>
                         {% endif %}
                     </div>
@@ -112,10 +112,9 @@
     <form id="combineForm" method="post" action="{% url 'documents:combined_create' %}">
         {% csrf_token %}
 
-        <div class="card overflow-hidden">
+        <div class="table-shell">
             {% if docs %}
-            <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3
-                    dark:border-slate-800">
+            <div class="table-bar">
                 <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
                     <input id="selectAll" type="checkbox"
                         class="h-4 w-4 rounded border-slate-300 dark:border-slate-700">
@@ -133,30 +132,30 @@
             </div>
 
             <div class="overflow-x-auto">
-                <table class="w-full text-sm">
-                    <thead class="bg-slate-50 text-slate-600 dark:bg-slate-950 dark:text-slate-300">
+                <table class="table">
+                    <thead class="table-head">
                         <tr>
-                            <th class="px-4 py-3 text-left font-medium"> </th>
-                            <th class="px-4 py-3 text-left font-medium">File</th>
-                            <th class="px-4 py-3 text-left font-medium">Type</th>
-                            <th class="px-4 py-3 text-left font-medium">Words</th>
-                            <th class="px-4 py-3 text-left font-medium">Uploaded</th>
-                            <th class="px-4 py-3 text-left font-medium">Chat</th>
-                            <th class="px-4 py-3 text-left font-medium">Actions</th>
+                            <th class="table-th"> </th>
+                            <th class="table-th">File</th>
+                            <th class="table-th">Type</th>
+                            <th class="table-th">Words</th>
+                            <th class="table-th">Uploaded</th>
+                            <th class="table-th">Chat</th>
+                            <th class="table-th">Actions</th>
                         </tr>
                     </thead>
 
                     <tbody id="docsTbody" data-search-url="{% url 'documents:search_api' %}"
-                        class="divide-y divide-slate-200 dark:divide-slate-800">
+                        class="table-body">
                         {% for d in docs %}
-                        <tr class="hover:bg-slate-50/70 dark:hover:bg-slate-900/30">
-                            <td class="px-4 py-3">
+                        <tr class="table-row">
+                            <td class="table-td">
                                 <input type="checkbox" name="doc_ids" value="{{ d.id }}"
                                     class="docCheckbox h-4 w-4 rounded border-slate-300 dark:border-slate-700"
                                     data-doc-id="{{ d.id }}">
                             </td>
 
-                            <td class="px-4 py-3">
+                            <td class="table-td">
                                 {% if d.has_chat %}
                                 <span class="mt-0.5 select-none text-xs">💬</span>
                                 {% endif %}
@@ -179,19 +178,19 @@
                             </td>
 
 
-                            <td class="px-4 py-3">
+                            <td class="table-td">
                                 <span
-                                    class="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                                    class="pill pill-neutral">
                                     {{ d.document_type }}
                                 </span>
                             </td>
 
-                            <td class="px-4 py-3">{{ d.word_count }}</td>
-                            <td class="px-4 py-3 text-slate-600 dark:text-slate-300">
+                            <td class="table-td">{{ d.word_count }}</td>
+                            <td class="table-td text-slate-600 dark:text-slate-300">
                                 {{ d.uploaded_at|date:"j M Y H:i" }}
                             </td>
 
-                            <td class="px-4 py-3">
+                            <td class="table-td">
                                 <div class="flex items-center gap-2">
                                     <a class="btn-outline" href="{% url 'documents:chat_document' d.pk %}">
                                         {% if d.has_chat %}Continue{% else %}Chat{% endif %}
@@ -199,7 +198,7 @@
                                 </div>
                             </td>
 
-                            <td class="px-4 py-3">
+                            <td class="table-td">
                                 <button type="button" class="deleteBtn btn-outline text-red-400 dark:text-red-300"
                                     data-doc-id="{{ d.id }}" data-delete-url="{% url 'documents:delete' d.pk %}">
                                     Delete
@@ -212,7 +211,7 @@
             </div>
 
             <div
-                class="border-t border-slate-200 px-4 py-3 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                class="table-footer">
                 Tip: combine works best when documents are on the same topic.
             </div>
 
