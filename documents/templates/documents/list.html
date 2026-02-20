@@ -46,9 +46,9 @@
                 <div>
                     <label class="text-xs font-medium text-slate-600 dark:text-slate-300">Type</label>
                     <div
-                        class="mt-1 flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus-within:ring-2 focus-within:ring-blue-200 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:ring-blue-500/20">
+                        class="input-shell">
                         <select id="typeSelect" name="type"
-                            class="w-full bg-transparent outline-none dark:text-slate-100">
+                            class="input-field">
                             <option value="">All</option>
                             {% for t in type_choices %}
                             <option value="{{ t }}" {% if dtype == t %}selected{% endif %}>{{ t }}</option>
@@ -60,18 +60,18 @@
                 <div>
                     <label class="text-xs font-medium text-slate-600 dark:text-slate-300">From</label>
                     <div
-                        class="mt-1 flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus-within:ring-2 focus-within:ring-blue-200 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:ring-blue-500/20">
+                        class="input-shell">
                         <input id="fromInput" type="date" name="from" value="{{ date_from }}"
-                            class="w-full bg-transparent outline-none dark:text-slate-100" />
+                            class="input-field" />
                     </div>
                 </div>
 
                 <div>
                     <label class="text-xs font-medium text-slate-600 dark:text-slate-300">To</label>
                     <div
-                        class="mt-1 flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus-within:ring-2 focus-within:ring-blue-200 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:ring-blue-500/20">
+                        class="input-shell">
                         <input id="toInput" type="date" name="to" value="{{ date_to }}"
-                            class="w-full bg-transparent outline-none dark:text-slate-100" />
+                            class="input-field" />
                     </div>
                 </div>
 
@@ -216,7 +216,7 @@
             </div>
 
             {% if page_obj and page_obj.paginator.num_pages > 1 %}
-            <div class="flex items-center justify-between border-t border-slate-200 px-4 py-3 dark:border-slate-800">
+            <div class="table-footer flex items-center justify-between">
                 <div class="text-xs text-slate-500 dark:text-slate-400">
                     Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
                 </div>

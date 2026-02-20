@@ -49,7 +49,7 @@
     </div>
 
     <div class="lg:col-span-2 space-y-5">
-        <div class="surface p-6">
+        <div class="surface p-6 lg:col-span-1">
             <h2 class="text-lg font-semibold">Summary</h2>
             <p class="mt-3 text-sm leading-relaxed text-slate-700 dark:text-slate-200">
                 {% if doc.summary %}
@@ -60,7 +60,7 @@
             </p>
         </div>
 
-        <div class="surface p-6">
+        <div class="surface p-6 lg:col-span-1">
             <h2 class="text-lg font-semibold">Status</h2>
 
             <div class="mt-3 flex items-start justify-between gap-4">
@@ -74,25 +74,20 @@
                             ✓ Done
                         </span>
                         {% elif s == "processing" %}
-                        <span
-                            class="pill pill-info">
-                            <span
-                                class="spin-dot"></span>
+                        <span class="pill pill-info">
+                            <span class="spin-dot"></span>
                             Processing
                         </span>
                         {% elif s == "queued" %}
-                        <span
-                            class="pill pill-">
+                        <span class="pill pill-neutral">
                             • Queued
                         </span>
                         {% elif s == "failed" or doc.error %}
-                        <span
-                            class="pill pill-danger">
+                        <span class="pill pill-danger">
                             ! Failed
                         </span>
                         {% else %}
-                        <span
-                            class="surface-muted p-4 text-sm text-red-700 dark:text-red-200 border-red-200 dark:border-red-900/60">
+                        <span class="pill pill-neutral">
                             {{ s|default:"unknown" }}
                         </span>
                         {% endif %}
@@ -124,7 +119,7 @@
             {% endif %}
         </div>
 
-        <div class="surface p-6">
+        <div class="surface p-6 lg:col-span-1">
             <h2 class="text-lg font-semibold">Preview</h2>
             <pre
                 class="mt-3 whitespace-pre-wrap rounded-xl bg-slate-100 p-4 text-xs text-slate-800 dark:bg-slate-950 dark:text-slate-200">{{ doc.extracted_text|truncatechars:1800|default:"(not extracted yet)" }}</pre>
