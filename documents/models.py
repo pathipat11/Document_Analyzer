@@ -126,6 +126,23 @@ class Message(models.Model):
 
     role = models.CharField(max_length=10, choices=ROLE_CHOICES)
     content = models.TextField()
+
+    parent_message = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="child_messages",
+    )
+    edited_from = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="edited_versions",
+    )
+    is_active = models.BooleanField(default=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

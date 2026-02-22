@@ -140,7 +140,6 @@ def answer_chat(conv: Conversation, user_question: str) -> str:
 
     q_lang = detect_language(q)
     lang = q_lang if q_lang in ("th", "en") else "th"
-
     lang_instruction = "Write in Thai." if lang == "th" else "Write in English."
 
     history = _build_history(conv)
@@ -148,17 +147,21 @@ def answer_chat(conv: Conversation, user_question: str) -> str:
 
     has_source = bool(conv.document_id or conv.notebook_id)
     system = _system(has_source)
-    
+
     if has_source and not context:
         system += "If there is no CONTEXT, reply that you don't have enough information.\n"
 
-    user = f"""
-user = f"{lang_instruction}\n\nUSER QUESTION:\n{q}".strip()
-if context:
-    user = f"{lang_instruction}\n\nCONTEXT:\n{_trim(context, max_chars=MAX_CONTEXT_CHARS)}\n\nUSER QUESTION:\n{q}".strip()
+    if context:
+        user = f"""{lang_instruction}
 
-CONTEXT (optional):
-{_trim(context, max_chars=MAX_CONTEXT_CHARS) if context else "(none)"}
+CONTEXT:
+{_trim(context, max_chars=MAX_CONTEXT_CHARS)}
+
+USER QUESTION:
+{q}
+""".strip()
+    else:
+        user = f"""{lang_instruction}
 
 USER QUESTION:
 {q}
