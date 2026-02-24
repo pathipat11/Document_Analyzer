@@ -525,7 +525,7 @@ def chat_view(request, conv_id: int):
 
         return redirect("documents:chat_view", conv_id=conv.id)
 
-    msgs = conv.messages.all()
+    msgs = conv.messages.filter(is_active=True).order_by("created_at")
     return render(request, "documents/chat.html", {
         "conv": conv,
         "chat_messages": msgs,
@@ -562,7 +562,12 @@ def chat_api(request, conv_id: int):
         user_msg.delete()
         return JsonResponse({"ok": False, "canceled": True}, status=409)
 
-    Message.objects.create(conversation=conv, role="assistant", content=assistant_text)
+    Message.objects.create(
+        conversation=conv,
+        role="assistant",
+        content=assistant_text,
+        parent_message=user_msg,
+    )
 
     return JsonResponse({
         "ok": True,
@@ -617,7 +622,12 @@ def chat_stream_api(request, conv_id: int):
                 yield sse("canceled", {"ok": False})
                 return
 
-            Message.objects.create(conversation=conv, role="assistant", content=assistant_text)
+            Message.objects.create(
+                conversation=conv,
+                role="assistant",
+                content=assistant_text,
+                parent_message=user_msg,
+            )
             yield sse("done", {"ok": True, "created_at": timezone.now().strftime("%b. %d, %Y, %I:%M %p")})
 
         except LLMError as e:
@@ -667,4 +677,57 @@ def usage_api(request):
             }
             for s in items
         ]
+    })
+    
+@login_required
+@require_POST
+def chat_reset_api(request, conv_id: int):
+    conv = get_object_or_404(Conversation, pk=conv_id, owner=request.user)
+    # conv.messages.all().delete()
+    conv.messages.update(is_active=False)
+    return JsonResponse({"ok": True})
+
+@login_required
+@require_POST
+def chat_regenerate_api(request, conv_id: int):
+    conv = get_object_or_404(Conversation, pk=conv_id, owner=request.user)
+    user_message_id = request.POST.get("user_message_id")
+
+    if not user_message_id:
+        return JsonResponse({"ok": False, "error": "Missing user_message_id"}, status=400)
+
+    user_msg = get_object_or_404(
+        Message,
+        pk=user_message_id,
+        conversation=conv,
+        role="user",
+        is_active=True,
+    )
+
+    old_assistant = conv.messages.filter(
+        role="assistant",
+        parent_message=user_msg,
+        is_active=True,
+    ).first()
+    if old_assistant:
+        old_assistant.is_active = False
+        old_assistant.save(update_fields=["is_active"])
+
+    try:
+        assistant_text = answer_chat(conv, user_msg.content) or "I couldn't generate a response."
+    except LLMError as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=502)
+
+    assistant_msg = Message.objects.create(
+        conversation=conv,
+        role="assistant",
+        content=assistant_text,
+        parent_message=user_msg,
+    )
+
+    return JsonResponse({
+        "ok": True,
+        "assistant": assistant_text,
+        "assistant_message_id": assistant_msg.id,
+        "created_at": timezone.now().strftime("%b. %d, %Y, %I:%M %p"),
     })

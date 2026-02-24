@@ -4,13 +4,16 @@
 {% block content %}
 <div id="chatRoot" data-chat-api-url="{% url 'documents:chat_api' conv.id %}"
     data-chat-stream-url="{% url 'documents:chat_stream_api' conv.id %}"
-    data-chat-cancel-url="{% url 'documents:chat_cancel_api' conv.id %}" data-csrf="{{ csrf_token }}">
+    data-chat-cancel-url="{% url 'documents:chat_cancel_api' conv.id %}"
+    data-chat-reset-url="{% url 'documents:chat_reset_api' conv.id %}"
+    data-chat-regenerate-url="{% url 'documents:chat_regenerate_api' conv.id %}" data-csrf="{{ csrf_token }}">
     <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
             <h1 class="text-xl font-semibold">{{ conv.title|default:"Chat" }}</h1>
             <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 {% if conv.document_id %}
-                Context: <span class="font-medium text-slate-700 dark:text-slate-200">{{ conv.document.file_name }}</span>
+                Context: <span class="font-medium text-slate-700 dark:text-slate-200">
+                    {{ conv.document.file_name }}</span>
                 {% else %}
                 Context: <span class="font-medium text-slate-700 dark:text-slate-200">{{ conv.notebook.title }}</span>
                 {% endif %}
@@ -18,6 +21,10 @@
         </div>
 
         <div class="flex items-center gap-2">
+            <button id="resetChatBtn" type="button" class="btn-outline text-red-600 dark:text-red-300">
+                Reset chat
+            </button>
+
             {% if conv.document_id %}
             <a class="btn-outline" href="{% url 'documents:detail' conv.document_id %}">Back to document</a>
             {% else %}
@@ -27,15 +34,13 @@
     </div>
 
     <!-- Chat Container -->
-    <div class="mt-5 table-shell overflow-hidden grid grid-rows-[1fr_auto]"
-        style="height: calc(100vh - 220px);">
+    <div class="mt-5 table-shell overflow-hidden grid grid-rows-[1fr_auto]" style="height: calc(100vh - 220px);">
 
         <!-- Messages -->
         <div id="chatScroll" class="min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4 bg-slate-50 dark:bg-slate-950">
 
             {% for m in chat_messages %}
             {% if m.role == "user" %}
-            <!-- USER -->
             <div class="flex justify-end">
                 <div class="max-w-[85%] sm:max-w-[70%]">
                     <div class="flex items-center justify-end gap-2 mb-1">
@@ -47,13 +52,20 @@
                         {{ m.content|linebreaksbr }}
                     </div>
 
+                    <div class="mt-1 flex justify-end gap-3">
+                        <button type="button"
+                            class="editMsgBtn text-[11px] text-blue-600 hover:underline dark:text-blue-300"
+                            data-message-id="{{ m.id }}" data-message="{{ m.content|escapejs }}">
+                            Edit
+                        </button>
+                    </div>
+
                     <div class="mt-1 text-right text-[11px] text-slate-400">
                         {{ m.created_at }}
                     </div>
                 </div>
             </div>
             {% else %}
-            <!-- ASSISTANT -->
             <div class="flex justify-start gap-3">
                 <div
                     class="mt-0.5 hidden sm:flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700">
@@ -67,9 +79,18 @@
 
                     <div
                         class="rounded-2xl rounded-tl-sm bg-slate-100 px-4 py-2.5 text-sm leading-relaxed text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-100 dark:ring-1 dark:ring-white/10">
-
                         {{ m.content|linebreaksbr }}
                     </div>
+
+                    {% if m.parent_message_id %}
+                    <div class="mt-1 flex justify-start  gap-3">
+                        <button type="button"
+                            class="regenMsgBtn text-[11px] text-slate-500 hover:underline dark:text-slate-300"
+                            data-message-id="{{ m.parent_message_id }}">
+                            Regenerate
+                        </button>
+                    </div>
+                    {% endif %}
 
                     <div class="mt-1 text-[11px] text-slate-400">
                         {{ m.created_at }}

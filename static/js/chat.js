@@ -131,6 +131,19 @@
         }
     }
 
+    document.addEventListener("click", (e) => {
+        const btn = e.target.closest(".editMsgBtn");
+        if (!btn) return;
+
+        const ta = document.getElementById("chatMessage");
+        if (!ta) return;
+
+        ta.value = btn.dataset.message || "";
+        ta.focus();
+        ta.style.height = "auto";
+        ta.style.height = Math.min(140, ta.scrollHeight) + "px";
+    });
+
     document.addEventListener("DOMContentLoaded", () => {
         const root = document.getElementById("chatRoot");
         const form = document.getElementById("chatForm");
@@ -143,6 +156,80 @@
         const streamUrl = root.getAttribute("data-chat-stream-url") || "";
         const cancelUrl = root.getAttribute("data-chat-cancel-url") || "";
         const csrf = form.querySelector('input[name="csrfmiddlewaretoken"]')?.value || "";
+
+        const resetUrl = root.getAttribute("data-chat-reset-url") || "";
+        const resetBtn = document.getElementById("resetChatBtn");
+
+        const regenerateUrl = root.getAttribute("data-chat-regenerate-url") || "";
+
+        if (resetBtn) {
+            resetBtn.addEventListener("click", async () => {
+                const ok = confirm("Reset this chat? All messages in this conversation will be removed.");
+                if (!ok) return;
+
+                try {
+                    const res = await fetch(resetUrl, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/x-www-form-urlencoded",
+                            "X-CSRFToken": csrf,
+                        },
+                        body: "",
+                    });
+
+                    const data = await res.json();
+                    if (!res.ok || !data.ok) throw new Error(data?.error || "Reset failed");
+
+                    chatScroll.innerHTML = `
+                    <div id="chatEmptyState" class="grid place-items-center h-full">
+                        <div class="text-center">
+                            <div class="mx-auto mb-2 h-10 w-10 rounded-2xl bg-slate-100 dark:bg-slate-800"></div>
+                            <div class="text-sm font-medium text-slate-700 dark:text-slate-200">Start a conversation</div>
+                            <div class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                                Ask a question about your document / notebook.
+                            </div>
+                            <div class="mt-3 text-xs text-slate-400">
+                                Tip: Enter = send • Shift+Enter = new line
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                    if (window.showToast) window.showToast("Chat reset.", "success");
+                } catch (err) {
+                    if (window.showToast) window.showToast("Reset failed.", "error");
+                }
+            });
+        }
+
+        document.addEventListener("click", async (e) => {
+            const regenBtn = e.target.closest(".regenMsgBtn");
+            if (!regenBtn) return;
+
+            const userMessageId = regenBtn.dataset.messageId;
+            if (!userMessageId || !regenerateUrl) return;
+
+            try {
+                const body = new URLSearchParams();
+                body.set("user_message_id", userMessageId);
+
+                const res = await fetch(regenerateUrl, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded",
+                        "X-CSRFToken": csrf,
+                    },
+                    body: body.toString(),
+                });
+
+                const data = await res.json();
+                if (!res.ok || !data.ok) throw new Error(data?.error || "Regenerate failed");
+
+                window.location.reload();
+            } catch (err) {
+                if (window.showToast) window.showToast("Regenerate failed.", "error");
+            }
+        });
 
         const autoGrow = () => {
             ta.style.height = "auto";
@@ -280,7 +367,7 @@
                             escapeHtml(state.assistantText || "").replace(/\n/g, "<br>") || `<span class="opacity-80">No response.</span>`,
                             d?.created_at || ""
                         );
-                        
+
                         if (window.Usage && typeof window.Usage.refresh === "function") {
                             window.Usage.refresh({ reason: "chat_done" });
                         }
