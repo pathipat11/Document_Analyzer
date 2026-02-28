@@ -21,7 +21,7 @@
         </div>
 
         <div class="flex items-center gap-2">
-            <button id="resetChatBtn" type="button" class="btn-outline text-red-600 dark:text-red-300">
+            <button id="resetChatBtn" type="button" class="btn-outline text-red-600 dark:text-red-300 cursor-pointer">
                 Reset chat
             </button>
 
@@ -54,7 +54,7 @@
 
                     <div class="mt-1 flex justify-end gap-3">
                         <button type="button"
-                            class="editMsgBtn text-[11px] text-blue-600 hover:underline dark:text-blue-300"
+                            class="editMsgBtn text-[11px] text-blue-600 hover:underline dark:text-blue-300 cursor-pointer"
                             data-message-id="{{ m.id }}" data-message="{{ m.content|escapejs }}">
                             Edit
                         </button>
@@ -85,7 +85,7 @@
                     {% if m.parent_message_id %}
                     <div class="mt-1 flex justify-start  gap-3">
                         <button type="button"
-                            class="regenMsgBtn text-[11px] text-slate-500 hover:underline dark:text-slate-300"
+                            class="regenMsgBtn text-[11px] text-slate-500 hover:underline dark:text-slate-300 cursor-pointer"
                             data-message-id="{{ m.parent_message_id }}">
                             Regenerate
                         </button>
@@ -129,7 +129,7 @@
                     </div>
                 </div>
 
-                <button id="sendBtn" class="btn h-11.5 px-5 self-start" type="submit">Send</button>
+                <button id="sendBtn" class="btn h-11.5 px-5 self-start cursor-pointer" type="submit">Send</button>
             </form>
         </div>
 
