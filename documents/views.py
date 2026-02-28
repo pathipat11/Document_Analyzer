@@ -525,7 +525,7 @@ def chat_view(request, conv_id: int):
 
         return redirect("documents:chat_view", conv_id=conv.id)
 
-    msgs = conv.messages.filter(is_active=True).order_by("created_at")
+    msgs = conv.messages.filter(is_active=True).order_by("id")
     return render(request, "documents/chat.html", {
         "conv": conv,
         "chat_messages": msgs,
@@ -622,13 +622,19 @@ def chat_stream_api(request, conv_id: int):
                 yield sse("canceled", {"ok": False})
                 return
 
-            Message.objects.create(
+            assistant_msg = Message.objects.create(
                 conversation=conv,
                 role="assistant",
                 content=assistant_text,
                 parent_message=user_msg,
             )
-            yield sse("done", {"ok": True, "created_at": timezone.now().strftime("%b. %d, %Y, %I:%M %p")})
+
+            yield sse("done", {
+                "ok": True,
+                "created_at": timezone.now().strftime("%b. %d, %Y, %I:%M %p"),
+                "user_message_id": user_msg.id,
+                "assistant_message_id": assistant_msg.id,
+            })
 
         except LLMError as e:
             user_msg.delete()
@@ -704,17 +710,17 @@ def chat_regenerate_api(request, conv_id: int):
         is_active=True,
     )
 
-    old_assistant = conv.messages.filter(
-        role="assistant",
-        parent_message=user_msg,
+    conv.messages.filter(
         is_active=True,
-    ).first()
-    if old_assistant:
-        old_assistant.is_active = False
-        old_assistant.save(update_fields=["is_active"])
+        id__gte=user_msg.id,
+    ).update(is_active=False)
 
     try:
-        assistant_text = answer_chat(conv, user_msg.content) or "I couldn't generate a response."
+        assistant_text = answer_chat(
+            conv,
+            user_msg.content,
+            history_until=user_msg,
+        ) or "I couldn't generate a response."
     except LLMError as e:
         return JsonResponse({"ok": False, "error": str(e)}, status=502)
 
@@ -723,7 +729,11 @@ def chat_regenerate_api(request, conv_id: int):
         role="assistant",
         content=assistant_text,
         parent_message=user_msg,
+        is_active=True,
     )
+
+    user_msg.is_active = True
+    user_msg.save(update_fields=["is_active"])
 
     return JsonResponse({
         "ok": True,

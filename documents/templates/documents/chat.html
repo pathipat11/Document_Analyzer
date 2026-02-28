@@ -42,13 +42,13 @@
             {% for m in chat_messages %}
             {% if m.role == "user" %}
             <div class="flex justify-end">
-                <div class="max-w-[85%] sm:max-w-[70%]">
+                <div class="max-w-[85%] sm:max-w-[70%] flex flex-col items-end">
                     <div class="flex items-center justify-end gap-2 mb-1">
                         <span class="text-xs text-slate-400">You</span>
                     </div>
 
                     <div
-                        class="rounded-2xl rounded-tr-sm bg-blue-600 px-4 py-2.5 text-sm leading-relaxed text-white shadow-sm">
+                        class="inline-block wrap-break-word rounded-2xl rounded-tr-sm bg-blue-500 px-4 py-2.5 text-sm leading-relaxed text-white shadow-sm dark:bg-blue-900 dark:text-slate-100 dark:ring-1 dark:ring-white/10">
                         {{ m.content|linebreaksbr }}
                     </div>
 
@@ -72,13 +72,13 @@
                     AI
                 </div>
 
-                <div class="max-w-[90%] sm:max-w-[75%]">
+                <div class="max-w-[90%] sm:max-w-[75%] flex flex-col items-start">
                     <div class="flex items-center gap-2 mb-1">
                         <span class="text-xs text-slate-400">Assistant</span>
                     </div>
 
                     <div
-                        class="rounded-2xl rounded-tl-sm bg-slate-100 px-4 py-2.5 text-sm leading-relaxed text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-100 dark:ring-1 dark:ring-white/10">
+                        class="inline-block rounded-2xl rounded-tl-sm bg-slate-100 px-4 py-2.5 text-sm leading-relaxed text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-100 dark:ring-1 dark:ring-white/10">
                         {{ m.content|linebreaksbr }}
                     </div>
 

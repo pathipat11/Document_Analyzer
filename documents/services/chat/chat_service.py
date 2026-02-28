@@ -21,19 +21,25 @@ def _trim(text: str, max_chars: int = MAX_CONTEXT_CHARS) -> str:
     half = max_chars // 2
     return t[:half] + "\n\n...[TRUNCATED]...\n\n" + t[-half:]
 
-def _build_history(conv: Conversation) -> List[dict]:
-    """
-    เอา history ล่าสุดเป็น messages สำหรับ LLM
-    - เอาเฉพาะ user/assistant
-    - จำกัดจำนวน turn
-    """
-    qs = conv.messages.filter(role__in=["user", "assistant"]).order_by("-created_at")
-    items = list(qs[: MAX_HISTORY_TURNS * 2])  # เผื่อ role สลับ
+def _build_history(conv: Conversation, until_message: Message | None = None) -> List[dict]:
+    qs = conv.messages.filter(
+        role__in=["user", "assistant"],
+        is_active=True,
+    )
+
+    if until_message:
+        qs = qs.filter(id__lte=until_message.id)
+
+    qs = qs.order_by("-id")
+    items = list(qs[: MAX_HISTORY_TURNS * 2])
     items.reverse()
 
     out = []
     for m in items:
-        out.append({"role": m.role, "content": (m.content or "").strip()})
+        out.append({
+            "role": m.role,
+            "content": (m.content or "").strip(),
+        })
     return out
 
 def _notebook_context(nb: CombinedSummary) -> str:
@@ -133,16 +139,17 @@ def _system(has_source: bool) -> str:
 
 
 
-def answer_chat(conv: Conversation, user_question: str) -> str:
+def answer_chat(conv: Conversation, user_question: str, history_until: Message | None = None) -> str:
     q = (user_question or "").strip()
     if not q:
         return ""
 
     q_lang = detect_language(q)
     lang = q_lang if q_lang in ("th", "en") else "th"
+
     lang_instruction = "Write in Thai." if lang == "th" else "Write in English."
 
-    history = _build_history(conv)
+    history = _build_history(conv, until_message=history_until)
     context = _build_context(conv, q)
 
     has_source = bool(conv.document_id or conv.notebook_id)
@@ -151,17 +158,11 @@ def answer_chat(conv: Conversation, user_question: str) -> str:
     if has_source and not context:
         system += "If there is no CONTEXT, reply that you don't have enough information.\n"
 
-    if context:
-        user = f"""{lang_instruction}
+    user = f"""
+{lang_instruction}
 
-CONTEXT:
-{_trim(context, max_chars=MAX_CONTEXT_CHARS)}
-
-USER QUESTION:
-{q}
-""".strip()
-    else:
-        user = f"""{lang_instruction}
+CONTEXT (optional):
+{_trim(context, max_chars=MAX_CONTEXT_CHARS) if context else "(none)"}
 
 USER QUESTION:
 {q}
@@ -173,7 +174,7 @@ USER QUESTION:
 
     return (generate_text(system, user, owner=conv.owner, purpose="chat") or "").strip()
 
-def answer_chat_stream(conv: Conversation, user_question: str, should_stop=None):
+def answer_chat_stream(conv: Conversation, user_question: str, should_stop=None, history_until: Message | None = None):
     q = (user_question or "").strip()
     if not q:
         return
@@ -182,7 +183,7 @@ def answer_chat_stream(conv: Conversation, user_question: str, should_stop=None)
     lang = q_lang if q_lang in ("th", "en") else "th"
     lang_instruction = "Write in Thai." if lang == "th" else "Write in English."
 
-    history = _build_history(conv)
+    history = _build_history(conv, until_message=history_until)
     context = _build_context(conv, q)
 
     has_source = bool(conv.document_id or conv.notebook_id)
@@ -197,6 +198,7 @@ CONTEXT (optional):
 USER QUESTION:
 {q}
 """.strip()
+
     if history:
         hist_text = "\n".join([f"{m['role'].upper()}: {m['content']}" for m in history])
         user += f"\n\nCHAT HISTORY (most recent):\n{_trim(hist_text, max_chars=4000)}"

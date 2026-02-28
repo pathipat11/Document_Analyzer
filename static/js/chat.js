@@ -45,17 +45,21 @@
 
     function appendUser(chatScroll, text) {
         chatScroll.insertAdjacentHTML("beforeend", `
-        <div class="flex justify-end">
-            <div class="max-w-[85%] sm:max-w-[70%]">
-            <div class="flex items-center justify-end gap-2 mb-1">
-                <span class="text-xs text-slate-400">You</span>
+            <div class="flex justify-end">
+                <div class="max-w-[85%] sm:max-w-[70%] flex flex-col items-end user-message">
+                    <div class="flex items-center justify-end gap-2 mb-1">
+                        <span class="text-xs text-slate-400">You</span>
+                    </div>
+
+                    <div class="inline-block wrap-break-word rounded-2xl rounded-tr-sm bg-blue-500 px-4 py-2.5 text-sm leading-relaxed text-white shadow-sm dark:bg-blue-900 dark:text-slate-100 dark:ring-1 dark:ring-white/10">
+                        ${escapeHtml(text).replace(/\n/g, "<br>")}
+                    </div>
+
+                    <div class="user-actions mt-1 flex justify-end gap-3"></div>
+
+                    <div class="mt-1 text-right text-[11px] text-slate-400">Now</div>
+                </div>
             </div>
-            <div class="rounded-2xl rounded-tr-sm bg-blue-600 px-4 py-2.5 text-sm leading-relaxed text-white shadow-sm">
-                ${escapeHtml(text).replace(/\n/g, "<br>")}
-            </div>
-            <div class="mt-1 text-right text-[11px] text-slate-400">Now</div>
-            </div>
-        </div>
         `);
     }
 
@@ -67,21 +71,54 @@
         chatScroll.insertAdjacentHTML("beforeend", `
         <div id="${id}" class="flex justify-start gap-3">
             <div class="mt-0.5 hidden sm:flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700">
-            AI
+                AI
             </div>
-            <div class="max-w-[90%] sm:max-w-[75%]">
-            <div class="flex items-center gap-2 mb-1">
-                <span class="text-xs text-slate-400">Assistant</span>
-            </div>
-            <div class="assistant-bubble rounded-2xl rounded-tl-sm bg-slate-100 px-4 py-2.5 text-sm leading-relaxed text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-100 dark:ring-1 dark:ring-white/10">
-                <span class="opacity-80">Thinking…</span>
-            </div>
-            <div class="assistant-time mt-1 text-[11px] text-slate-400">Now</div>
+
+            <div class="max-w-[90%] sm:max-w-[75%] flex flex-col items-start">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="text-xs text-slate-400">Assistant</span>
+                </div>
+
+                <div class="assistant-bubble rounded-2xl rounded-tl-sm bg-slate-100 px-4 py-2.5 text-sm leading-relaxed text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-100 dark:ring-1 dark:ring-white/10">
+                    <span class="opacity-80">Thinking…</span>
+                </div>
+
+                <div class="assistant-actions mt-1 flex justify-start gap-3"></div>
+                <div class="assistant-time mt-1 text-[11px] text-slate-400">Now</div>
             </div>
         </div>
         `);
 
         return id;
+    }
+
+    function setLastUserEdit(userMessageId, text) {
+        if (!userMessageId) return;
+
+        const userBlocks = Array.from(document.querySelectorAll(".user-message"));
+        const lastUser = userBlocks[userBlocks.length - 1];
+        if (!lastUser) return;
+
+        let actions = lastUser.querySelector(".user-actions");
+        if (!actions) {
+            actions = document.createElement("div");
+            actions.className = "user-actions mt-1 flex justify-end gap-3";
+            lastUser.appendChild(actions);
+        }
+
+        actions.innerHTML = `
+        <button type="button"
+            class="editMsgBtn text-[11px] text-blue-600 hover:underline dark:text-blue-300"
+            data-message-id="${userMessageId}"
+            data-message="">
+            Edit
+        </button>
+    `;
+
+        const btn = actions.querySelector(".editMsgBtn");
+        if (btn) {
+            btn.dataset.message = text || "";
+        }
     }
 
     function setAssistantHtml(id, html, createdAt) {
@@ -91,6 +128,22 @@
         const time = node.querySelector(".assistant-time");
         if (bubble) bubble.innerHTML = html;
         if (time && createdAt) time.textContent = createdAt;
+    }
+
+    function setAssistantRegenerate(id, userMessageId) {
+        const node = document.getElementById(id);
+        if (!node) return;
+
+        const actions = node.querySelector(".assistant-actions");
+        if (!actions || !userMessageId) return;
+
+        actions.innerHTML = `
+            <button type="button"
+                class="regenMsgBtn text-[11px] text-slate-500 hover:underline dark:text-slate-300"
+                data-message-id="${userMessageId}">
+                Regenerate
+            </button>
+        `;
     }
 
     // Parse SSE from fetch stream:
@@ -361,12 +414,14 @@
                     },
 
                     done: (d) => {
-                        // finalize time label
                         setAssistantHtml(
                             thinkingId,
                             escapeHtml(state.assistantText || "").replace(/\n/g, "<br>") || `<span class="opacity-80">No response.</span>`,
                             d?.created_at || ""
                         );
+
+                        setLastUserEdit(d?.user_message_id, text);
+                        setAssistantRegenerate(thinkingId, d?.user_message_id);
 
                         if (window.Usage && typeof window.Usage.refresh === "function") {
                             window.Usage.refresh({ reason: "chat_done" });
