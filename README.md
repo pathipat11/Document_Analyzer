@@ -1,384 +1,250 @@
-# Document Intake & Analysis System
-
-## Overview
-
-**Document Intake & Analysis System** is a Django-based document processing and AI analysis platform designed to ingest, analyze, summarize, search, and interact with documents using Large Language Models (LLMs).
-
-The system supports both:
-
-* **Local-first development** (Ollama)
-* **Cloud inference via AWS Bedrock (Claude 3.5 Haiku – Inference Profile ARN)**
-
-It is structured as a clean, service-oriented prototype that demonstrates production-style architecture patterns including streaming, cancellation safety, storage abstraction, quota control, and PostgreSQL full-text search.
-
----
-
-# Core Capabilities
-
-## 1. Secure Document Management
-
-* Django authentication system
-* Per-user document isolation (ownership enforced in queries)
-* Upload single or multiple files
-* Supported formats:
-
-  * `.txt`
-  * `.csv`
-  * `.pdf` (text-based)
-  * `.docx`
-* Upload validation:
-
-  * Max file size
-  * Max total upload size
-  * Max files per request
-* Safe deletion:
-
-  * Removes file from storage (local or S3)
-  * Deletes DB record
-  * Preserves pagination and filters
-
----
-
-## 2. Storage Architecture (S3 + Presigned URLs)
-
-* Django storage abstraction (`FileField` backend)
-* Compatible with local storage or **private Amazon S3 buckets**
-* Secure downloads via **pre-signed URLs**
-* Inline file preview using secure `Content-Disposition`
-* No direct public file exposure
-
-This enables safe cloud deployment without rewriting file logic.
-
----
-
-## 3. Text Extraction & Metadata Pipeline
-
-Each uploaded document is processed synchronously through a structured pipeline:
-
-* Text extraction by file type
-* Word count calculation
-* Character count calculation
-* Extracted text persisted in database
-
-> OCR is intentionally excluded to keep the prototype focused and deterministic.
-
----
-
-## 4. AI-Powered Analysis
-
-### 4.1 Document Summarization
-
-* Short, concise summaries
-* Language-aware output (Thai / English auto-detected)
-* Optimized prompt length for token efficiency
-
-### 4.2 Automatic Classification
-
-Documents are classified into strict single-label types:
-
-* `invoice`
-* `announcement`
-* `policy`
-* `proposal`
-* `report`
-* `research`
-* `resume`
-* `other`
-
-Classification is enforced via strict prompt formatting.
-
----
-
-## 5. PostgreSQL Full-Text Search
-
-Advanced search powered by:
-
-* `SearchVector`
-* `SearchQuery` (websearch mode)
-* `SearchRank`
-* `SearchHeadline` (snippet extraction)
-
-Features:
-
-* Keyword-based search
-* Ranked ordering
-* Extracted text snippets
-* Filename matching
-* Type filtering
-* Date filtering
-* Pagination preserved
-
-This enables fast, scalable document lookup without external search engines.
-
----
-
-## 6. Notebook-Style Multi-Document Analysis (Map–Reduce)
-
-Supports combined analysis across multiple documents.
-
-### Creation Methods
-
-* Auto-combine on multi-file upload
-* Manual combine from document list
-
-### Processing Strategy
-
-**Map Step**:
-
-* Reuse or generate per-document summaries
-
-**Reduce Step**:
-
-* Generate consolidated cross-document summary
-* AI-generated notebook title
-
-Notebook contains:
-
-* Title
-* Combined summary
-* Linked documents
-* Document count
-* Aggregate word count
-
-Designed for token efficiency (reduce step operates on summaries only).
-
----
-
-## 7. Retrieval-Augmented Chat (RAG-lite)
-
-For document-aware chat:
-
-* Relevant text chunks are selected per question
-* Heuristic term overlap scoring
-* Only top excerpts injected into prompt
-* Reduced context size
-* Improved factual grounding
-
-Prevents unnecessary full-document prompt injection.
-
----
-
-## 8. Smart Chat Routing
-
-Dual-mode conversation handling:
-
-* **Document-aware mode**
-* **General assistant mode**
-
-Automatic routing based on:
-
-* Keyword overlap
-* Stopword filtering (Thai + English)
-* Relevance thresholds
-
-Manual override supported:
-
-* `@doc <question>` → force document mode
-* `@chat <question>` → force general mode
-
-Prevents hallucinated document references.
-
----
-
-## 9. Real-Time Streaming Chat (SSE)
-
-ChatGPT-style streaming using Server-Sent Events.
-
-Features:
-
-* Token-by-token streaming
-* Cancel button
-* Dual cancellation safety:
-
-  * Client abort
-  * Server-side cancellation flag
-* Prevents partial assistant message saves
-* Guarantees clean conversation history
-
----
-
-## 10. Usage Monitoring & Token Ledger
-
-Per-user daily token budgets:
-
-* Separate budgets for:
-
-  * Chat
-  * Upload / Analysis
-* Remaining quota tracking
-* Automatic reset at midnight (timezone aware)
-* Usage API for UI display
-* Visual usage indicators (low / empty states)
-
-Prevents runaway cost and enforces guardrails.
-
----
-
-## 11. LLM Architecture (Provider-Agnostic)
-
-Unified client layer:
-
-* `generate_text()`
-* `generate_text_stream()`
-
-Supported providers:
-
-* Ollama (local)
-* AWS Bedrock – Claude 3.5 Haiku (Inference Profile ARN)
-
-Switch via environment:
-
+# Document Analyzer
+
+`Document Analyzer` is a Django web application for uploading documents, extracting text, generating AI summaries, classifying document types, searching content with PostgreSQL full-text search, and chatting against a single document or a multi-document notebook.
+
+The current codebase is organized around a service layer under `documents/services/` and supports both local LLM inference with Ollama and cloud inference through AWS Bedrock.
+
+## Features
+
+### Document management
+
+- User registration, login, password reset, profile edit, deactivate account, and delete account
+- Per-user document isolation on all document, notebook, and chat queries
+- Multi-file upload with validation for:
+  - Allowed extensions: `.txt`, `.csv`, `.pdf`, `.docx`
+  - Maximum file size per file
+  - Maximum total upload size per request
+  - Maximum files per upload
+- Reprocess an uploaded document
+- Delete documents safely, including protection when a file is already linked to a combined summary
+- CSV export for a user document list
+
+### Processing pipeline
+
+Each uploaded file is processed synchronously:
+
+1. Save file through Django storage
+2. Extract raw text by file type
+3. Sanitize text
+4. Compute word count and character count
+5. Chunk extracted text for retrieval
+6. Generate summary
+7. Classify document type
+8. Build PostgreSQL search vector
+9. Move the file into a type-based storage path
+
+Supported document type labels:
+
+- `invoice`
+- `announcement`
+- `policy`
+- `proposal`
+- `report`
+- `research`
+- `resume`
+- `other`
+
+### Search and browsing
+
+- PostgreSQL full-text search on file name, summary, and extracted text
+- Ranked search results with snippets
+- Filters by document type and upload date
+- Paginated document list
+- Separate combined-summary list with query and sorting options
+- Search index rebuild command: `python manage.py rebuild_search`
+
+### Combined summaries
+
+- Auto-create a notebook when uploading multiple files
+- Manually combine selected documents from the document list
+- AI-generated notebook title
+- Cross-document summary generated from per-document summaries
+- Notebook detail page with linked source documents
+- Separate notebook chat entry point
+
+### Chat
+
+- Chat tied to a single document or a combined notebook
+- Context built from document summary plus retrieved chunks
+- Streaming chat via Server-Sent Events
+- Cancel in-progress generation
+- Reset chat history
+- Regenerate assistant responses
+- Citation-style chunk references in grounded answers such as `[D12-C3]`
+- Language-aware responses for Thai and English
+
+### Quotas and usage
+
+- Daily LLM call guardrail
+- Separate token budgets for `chat` and `upload`
+- Remaining budget API for UI indicators
+- Token usage logging in `LLMCallLog`
+
+### Storage and delivery
+
+- Uploaded files stored through Django `FileField`
+- Current settings use `django-storages` S3 storage for media
+- Secure document access through presigned S3 URLs
+- Inline preview headers for supported files
+
+## Architecture
+
+```text
+documents/
+├── models.py
+├── views.py
+├── urls.py
+├── management/commands/
+└── services/
+    ├── analysis/
+    ├── chat/
+    ├── llm/
+    ├── pipeline/
+    ├── search/
+    ├── storage/
+    └── upload/
 ```
+
+Design choices in the current implementation:
+
+- Thin Django views
+- Service-based processing and chat orchestration
+- Provider abstraction for LLM calls
+- PostgreSQL-native search instead of an external search engine
+- Cache-backed token ledger for daily usage tracking
+- Synchronous processing on upload
+
+## Stack
+
+- Python 3
+- Django 6
+- PostgreSQL
+- Tailwind CSS 4
+- Ollama
+- AWS Bedrock
+- Amazon S3 via `django-storages`
+- Server-Sent Events for chat streaming
+
+## Setup
+
+### 1. Install dependencies
+
+```bash
+pip install -r requirements.txt
+npm install
+```
+
+Note: the codebase also imports `boto3`, `botocore`, and `django-storages`. If they are not already available in your environment, install them as well.
+
+### 2. Create environment variables
+
+Example `.env`:
+
+```env
+DJANGO_SECRET_KEY=dev-secret-key
+DJANGO_DEBUG=1
+
+DB_NAME=document_analyzer
+DB_USER=postgres
+DB_PASSWORD=root
+DB_HOST=127.0.0.1
+DB_PORT=5432
+
+MAX_UPLOAD_SIZE=5242880
+MAX_FILES_PER_UPLOAD=5
+MAX_TOTAL_UPLOAD_SIZE=20971520
+ALLOWED_EXTENSIONS=txt,csv,pdf,docx
+
+ENABLE_LLM=1
+LLM_PROVIDER=ollama
+OLLAMA_HOST=http://localhost:11434
+OLLAMA_MODEL=llama3
+
+AWS_REGION=us-east-1
+BEDROCK_INFERENCE_PROFILE_ARN=
+BEDROCK_MAX_TOKENS=800
+BEDROCK_TEMPERATURE=0.2
+
+LLM_DAILY_CALL_LIMIT=0
+LLM_TOKENS_CHAT=0
+LLM_TOKENS_UPLOAD=0
+
+AWS_STORAGE_BUCKET_NAME=
+AWS_S3_REGION_NAME=ap-southeast-1
+
+EMAIL_HOST_USER=
+EMAIL_HOST_PASSWORD=
+SITE_DOMAIN=127.0.0.1:8000
+SITE_PROTOCOL=http
+```
+
+### 3. Prepare the database
+
+```bash
+python manage.py migrate
+```
+
+### 4. Build frontend assets
+
+```bash
+npm run build:css
+```
+
+For active UI work:
+
+```bash
+npm run watch:css
+```
+
+### 5. Run the app
+
+```bash
+python manage.py runserver
+```
+
+## Main URLs
+
+- `/` landing page
+- `/app/` document list
+- `/upload/` upload page
+- `/combined/` combined summaries
+- `/accounts/login/` login
+- `/admin/` Django admin
+- `/health/` health check
+
+## Key Models
+
+- `Document`: uploaded file, extracted text, summary, classification, metadata, search vector
+- `CombinedSummary`: notebook built from multiple documents
+- `Conversation`: chat target bound to exactly one document or one notebook
+- `Message`: chat history with active/inactive and edit lineage fields
+- `LLMCallLog`: provider, purpose, latency, token usage, success or error
+- `DocumentChunk`: retrieval chunks for grounded chat
+
+## LLM Providers
+
+The application supports two providers through `documents/services/llm/client.py`:
+
+- `ollama`
+- `bedrock`
+
+Switch provider with:
+
+```env
+LLM_PROVIDER=ollama
+```
+
+or
+
+```env
 LLM_PROVIDER=bedrock
-```
-
-Inference Profile example:
-
-```
 BEDROCK_INFERENCE_PROFILE_ARN=arn:aws:bedrock:region:account:inference-profile/...
 ```
 
-Design ensures no provider-specific logic leaks into views.
+## Notes and current limitations
 
----
-
-## 12. CSV Export
-
-* Export documents as CSV
-* Preserves filtering (type-based export)
-* Includes metadata and summaries
-
----
-
-## 13. User Interface & UX
-
-* Django Templates + Tailwind CSS
-* Responsive layout
-* Landing page with animated hero + typing preview
-* Dark / Light mode toggle
-* Toast notifications
-* Pagination (10 items per page)
-* Preserved filters across navigation
-* Usage dropdown with live refresh
-
----
-
-# Architecture
-
-```
-documents/
-├── views.py
-├── models.py
-├── services/
-│   ├── upload/
-│   ├── pipeline/
-│   ├── analysis/
-│   ├── chat/
-│   ├── llm/
-│   └── storage/
-```
-
-Design Principles:
-
-* Thin views
-* Service-layer isolation
-* Provider abstraction
-* Cancel-safe streaming
-* Token-aware prompt design
-* PostgreSQL-native search
-
----
-
-# Processing Flows
-
-## 1. Upload Flow
-
-```
-Upload
-  ↓
-Validation
-  ↓
-Storage (Local or S3)
-  ↓
-Extraction
-  ↓
-Metadata
-  ↓
-Summarization + Classification
-  ↓
-Persist
-```
-
----
-
-## 2. Combined Summary Flow
-
-```
-Select Multiple Docs
-  ↓
-Map (per-doc summaries)
-  ↓
-Generate Title
-  ↓
-Reduce (cross-doc summary)
-  ↓
-Create Notebook
-```
-
----
-
-## 3. Streaming Chat Flow
-
-```
-User Message
-  ↓
-Save User
-  ↓
-Context Assembly
-  ↓
-LLM Stream (SSE)
-  ↓
-Token Streaming
-  ↓
-Save Assistant
-```
-
-Cancellation Path:
-
-```
-Cancel
-  ↓
-Abort Client
-  ↓
-Stop Server
-  ↓
-No Save
-```
-
----
-
-# Tech Stack
-
-* Python
-* Django
-* PostgreSQL
-* AWS Bedrock (Claude 3.5)
-* Ollama
-* Tailwind CSS
-* Server-Sent Events (SSE)
-
----
-
-# Future Roadmap
-
-* Background job queue (Celery / RQ)
-* Embedding-based semantic retrieval
-* Team workspaces
-* Role-based access control
-* Advanced analytics dashboard
-* CloudFront integration
-* Asynchronous processing pipeline
-
----
-
-This project demonstrates a structured, production-aware AI document workflow with clean separation of concerns and scalable architectural foundations.
+- PDF support is text extraction only. There is no OCR pipeline.
+- Upload processing is synchronous, so large batches will block the request until processing finishes.
+- PostgreSQL is required because the project uses `django.contrib.postgres` search features.
+- Token budgets are cache-backed. If you want shared budget state across multiple app instances, configure a shared cache backend such as Redis.
+- The default `settings.py` media storage is S3-backed. For purely local file storage, you will need to adjust the storage configuration.
