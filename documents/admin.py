@@ -44,9 +44,9 @@ class ConversationAdmin(admin.ModelAdmin):
 
 @admin.register(Message)
 class MessageAdmin(admin.ModelAdmin):
-    list_display = ("id", "conversation", "role", "short_content", "created_at")
+    list_display = ("id", "conversation", "role", "short_content", "created_at", "is_active", "parent_message_id")
     list_filter = ("role", "created_at")
-    search_fields = ("content", "conversation__title", "conversation__owner__username")
+    search_fields = ("content", "conversation__title", "conversation__owner__username", "is_active")
     readonly_fields = ("created_at",)
 
     def short_content(self, obj):
