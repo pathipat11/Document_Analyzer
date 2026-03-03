@@ -582,6 +582,7 @@ def chat_stream_api(request, conv_id: int):
 
     user_text = (request.POST.get("message") or "").strip()
     rid = (request.POST.get("request_id") or "").strip()
+    edit_message_id = (request.POST.get("edit_message_id") or "").strip()
 
     if not user_text:
         return JsonResponse({"ok": False, "error": "Empty message"}, status=400)
@@ -590,13 +591,34 @@ def chat_stream_api(request, conv_id: int):
 
     cache.delete(f"chat_cancel:{conv.id}:{rid}")
 
-    # if not check_daily_limit(request.user.id):
-    #     return JsonResponse(
-    #         {"ok": False, "error": "Daily LLM limit reached. Please try again tomorrow."},
-    #         status=429,
-    #     )
+    if edit_message_id:
+        old_user_msg = get_object_or_404(
+            Message,
+            pk=edit_message_id,
+            conversation=conv,
+            role="user",
+            is_active=True,
+        )
 
-    user_msg = Message.objects.create(conversation=conv, role="user", content=user_text)
+        conv.messages.filter(
+            is_active=True,
+            id__gte=old_user_msg.id,
+        ).update(is_active=False)
+
+        user_msg = Message.objects.create(
+            conversation=conv,
+            role="user",
+            content=user_text,
+            edited_from=old_user_msg,
+            is_active=True,
+        )
+    else:
+        user_msg = Message.objects.create(
+            conversation=conv,
+            role="user",
+            content=user_text,
+            is_active=True,
+        )
 
     def sse(event: str, data: dict):
         return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
@@ -607,7 +629,12 @@ def chat_stream_api(request, conv_id: int):
             def stopped():
                 return cache.get(f"chat_cancel:{conv.id}:{rid}") is True
 
-            for token in answer_chat_stream(conv, user_text, should_stop=stopped):
+            for token in answer_chat_stream(
+                conv,
+                user_text,
+                should_stop=stopped,
+                history_until=user_msg,
+            ):
                 if stopped():
                     user_msg.delete()
                     yield sse("canceled", {"ok": False})
@@ -627,6 +654,7 @@ def chat_stream_api(request, conv_id: int):
                 role="assistant",
                 content=assistant_text,
                 parent_message=user_msg,
+                is_active=True,
             )
 
             yield sse("done", {
@@ -634,6 +662,7 @@ def chat_stream_api(request, conv_id: int):
                 "created_at": timezone.now().strftime("%b. %d, %Y, %I:%M %p"),
                 "user_message_id": user_msg.id,
                 "assistant_message_id": assistant_msg.id,
+                "edited_from_id": edit_message_id or None,
             })
 
         except LLMError as e:
@@ -710,10 +739,15 @@ def chat_regenerate_api(request, conv_id: int):
         is_active=True,
     )
 
+    # ปิดทุกข้อความตั้งแต่ user message นี้ลงไป
     conv.messages.filter(
         is_active=True,
         id__gte=user_msg.id,
     ).update(is_active=False)
+
+    # เปิด user ต้นทางกลับมา เพื่อใช้เป็น root ของ branch ใหม่
+    user_msg.is_active = True
+    user_msg.save(update_fields=["is_active"])
 
     try:
         assistant_text = answer_chat(
@@ -732,12 +766,10 @@ def chat_regenerate_api(request, conv_id: int):
         is_active=True,
     )
 
-    user_msg.is_active = True
-    user_msg.save(update_fields=["is_active"])
-
     return JsonResponse({
         "ok": True,
         "assistant": assistant_text,
         "assistant_message_id": assistant_msg.id,
+        "parent_user_message_id": user_msg.id,
         "created_at": timezone.now().strftime("%b. %d, %Y, %I:%M %p"),
     })

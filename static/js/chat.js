@@ -5,13 +5,23 @@
         requestId: null,
         thinkingId: null,
         assistantText: "",
+        editingMessageId: null,
+        originalTailHtml: null,
+        isEditing: false,
     };
 
     function escapeHtml(s) {
         return (s || "").replace(/[&<>"']/g, (c) => ({
-            "&": "&amp;", "<": "&lt;", ">": "&gt;",
-            '"': "&quot;", "'": "&#39;",
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;",
         }[c]));
+    }
+
+    function nl2br(s) {
+        return escapeHtml(s).replace(/\n/g, "<br>");
     }
 
     function genRequestId() {
@@ -35,32 +45,78 @@
     function setButton(btn, sending) {
         state.isSending = sending;
         if (!btn) return;
-
-        // ปุ่มเดียว: ส่ง ↔ ยกเลิก
         btn.type = sending ? "button" : "submit";
         btn.textContent = sending ? "Cancel" : "Send";
         btn.classList.toggle("btn-outline", sending);
         btn.classList.toggle("btn", !sending);
     }
 
-    function appendUser(chatScroll, text) {
-        chatScroll.insertAdjacentHTML("beforeend", `
-            <div class="flex justify-end">
+    function buildUserRowHtml({ messageId = "", text = "", createdAt = "Now" }) {
+        return `
+            <div class="flex justify-end message-row user-row" data-message-id="${messageId}" data-role="user">
                 <div class="max-w-[85%] sm:max-w-[70%] flex flex-col items-end user-message">
                     <div class="flex items-center justify-end gap-2 mb-1">
                         <span class="text-xs text-slate-400">You</span>
                     </div>
 
                     <div class="inline-block wrap-break-word rounded-2xl rounded-tr-sm bg-blue-500 px-4 py-2.5 text-sm leading-relaxed text-white shadow-sm dark:bg-blue-900 dark:text-slate-100 dark:ring-1 dark:ring-white/10">
-                        ${escapeHtml(text).replace(/\n/g, "<br>")}
+                        ${nl2br(text)}
                     </div>
 
-                    <div class="user-actions mt-1 flex justify-end gap-3"></div>
+                    <div class="mt-1 flex justify-end gap-3 user-actions">
+                        <button type="button"
+                            class="editMsgBtn text-[11px] text-blue-600 hover:underline dark:text-blue-300"
+                            data-message-id="${messageId}"
+                            data-message="${escapeHtml(text)}">
+                            Edit
+                        </button>
+                    </div>
 
-                    <div class="mt-1 text-right text-[11px] text-slate-400">Now</div>
+                    <div class="mt-1 text-right text-[11px] text-slate-400 message-time">
+                        ${createdAt}
+                    </div>
                 </div>
             </div>
-        `);
+        `;
+    }
+
+    function buildAssistantRowHtml({ messageId = "", userMessageId = "", text = "", createdAt = "Now", thinking = false }) {
+        return `
+            <div class="flex justify-start gap-3 message-row assistant-row" data-message-id="${messageId}" data-role="assistant">
+                <div class="mt-0.5 hidden sm:flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700">
+                    AI
+                </div>
+
+                <div class="max-w-[90%] sm:max-w-[75%] flex flex-col items-start">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-xs text-slate-400">Assistant</span>
+                    </div>
+
+                    <div class="assistant-bubble inline-block wrap-break-word rounded-2xl rounded-tl-sm bg-slate-100 px-4 py-2.5 text-sm leading-relaxed text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-100 dark:ring-1 dark:ring-white/10">
+                        ${thinking ? `<span class="opacity-80">Thinking…</span>` : nl2br(text)}
+                    </div>
+
+                    <div class="mt-1 flex justify-start gap-3 assistant-actions">
+                        ${!thinking && userMessageId ? `
+                            <button type="button"
+                                class="regenMsgBtn text-[11px] text-slate-500 hover:underline dark:text-slate-300"
+                                data-message-id="${userMessageId}">
+                                Regenerate
+                            </button>
+                        ` : ""}
+                    </div>
+
+                    <div class="assistant-time mt-1 text-[11px] text-slate-400">
+                        ${createdAt}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function appendUser(chatScroll, text) {
+        chatScroll.insertAdjacentHTML("beforeend", buildUserRowHtml({ text, createdAt: "Now" }));
+        return chatScroll.lastElementChild;
     }
 
     function appendThinking(chatScroll) {
@@ -69,89 +125,161 @@
         state.assistantText = "";
 
         chatScroll.insertAdjacentHTML("beforeend", `
-        <div id="${id}" class="flex justify-start gap-3">
-            <div class="mt-0.5 hidden sm:flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700">
-                AI
+            <div id="${id}">
+                ${buildAssistantRowHtml({ thinking: true, createdAt: "Now" })}
             </div>
-
-            <div class="max-w-[90%] sm:max-w-[75%] flex flex-col items-start">
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="text-xs text-slate-400">Assistant</span>
-                </div>
-
-                <div class="assistant-bubble rounded-2xl rounded-tl-sm bg-slate-100 px-4 py-2.5 text-sm leading-relaxed text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-100 dark:ring-1 dark:ring-white/10">
-                    <span class="opacity-80">Thinking…</span>
-                </div>
-
-                <div class="assistant-actions mt-1 flex justify-start gap-3"></div>
-                <div class="assistant-time mt-1 text-[11px] text-slate-400">Now</div>
-            </div>
-        </div>
         `);
 
         return id;
     }
 
-    function setLastUserEdit(userMessageId, text) {
-        if (!userMessageId) return;
-
-        const userBlocks = Array.from(document.querySelectorAll(".user-message"));
-        const lastUser = userBlocks[userBlocks.length - 1];
-        if (!lastUser) return;
-
-        let actions = lastUser.querySelector(".user-actions");
-        if (!actions) {
-            actions = document.createElement("div");
-            actions.className = "user-actions mt-1 flex justify-end gap-3";
-            lastUser.appendChild(actions);
-        }
-
-        actions.innerHTML = `
-        <button type="button"
-            class="editMsgBtn text-[11px] text-blue-600 hover:underline dark:text-blue-300"
-            data-message-id="${userMessageId}"
-            data-message="">
-            Edit
-        </button>
-    `;
-
-        const btn = actions.querySelector(".editMsgBtn");
-        if (btn) {
-            btn.dataset.message = text || "";
-        }
-    }
-
     function setAssistantHtml(id, html, createdAt) {
-        const node = document.getElementById(id);
-        if (!node) return;
-        const bubble = node.querySelector(".assistant-bubble");
-        const time = node.querySelector(".assistant-time");
+        const wrapper = document.getElementById(id);
+        if (!wrapper) return;
+        const bubble = wrapper.querySelector(".assistant-bubble");
+        const time = wrapper.querySelector(".assistant-time");
         if (bubble) bubble.innerHTML = html;
         if (time && createdAt) time.textContent = createdAt;
     }
 
-    function setAssistantRegenerate(id, userMessageId) {
-        const node = document.getElementById(id);
-        if (!node) return;
+    function setAssistantMeta(id, assistantMessageId, userMessageId) {
+        const wrapper = document.getElementById(id);
+        if (!wrapper) return;
 
-        const actions = node.querySelector(".assistant-actions");
-        if (!actions || !userMessageId) return;
+        const row = wrapper.querySelector(".assistant-row");
+        const actions = wrapper.querySelector(".assistant-actions");
 
-        actions.innerHTML = `
-            <button type="button"
-                class="regenMsgBtn text-[11px] text-slate-500 hover:underline dark:text-slate-300"
-                data-message-id="${userMessageId}">
-                Regenerate
-            </button>
-        `;
+        if (row && assistantMessageId) {
+            row.setAttribute("data-message-id", assistantMessageId);
+        }
+
+        if (actions && userMessageId) {
+            actions.innerHTML = `
+                <button type="button"
+                    class="regenMsgBtn text-[11px] text-slate-500 hover:underline dark:text-slate-300"
+                    data-message-id="${userMessageId}">
+                    Regenerate
+                </button>
+            `;
+        }
     }
 
-    // Parse SSE from fetch stream:
-    // expects lines: "event: token" + "data: {...}" separated by blank line
+    function replaceAssistantMessage(oldAssistantId, payload) {
+        const oldNode = document.querySelector(`.assistant-row[data-message-id="${oldAssistantId}"]`);
+        if (!oldNode) return false;
+
+        oldNode.outerHTML = buildAssistantRowHtml({
+            messageId: payload.assistant_message_id,
+            userMessageId: payload.parent_user_message_id,
+            text: payload.assistant,
+            createdAt: payload.created_at,
+        });
+
+        return true;
+    }
+
+    function replaceUserMessage(userMessageId, newText) {
+        const node = document.querySelector(`.user-row[data-message-id="${userMessageId}"]`);
+        if (!node) return false;
+
+        const bubble = node.querySelector(".user-message > .inline-block");
+        const editBtn = node.querySelector(".editMsgBtn");
+
+        if (bubble) bubble.innerHTML = nl2br(newText);
+        if (editBtn) editBtn.dataset.message = newText;
+
+        return true;
+    }
+
+    function snapshotMessagesAfter(messageId) {
+        if (!messageId) return "";
+
+        const rows = Array.from(document.querySelectorAll(".message-row"));
+        let found = false;
+        const htmlParts = [];
+
+        for (const row of rows) {
+            const rowId = row.getAttribute("data-message-id");
+
+            if (String(rowId) === String(messageId)) {
+                found = true;
+                continue;
+            }
+
+            if (found) {
+                htmlParts.push(row.outerHTML);
+            }
+        }
+
+        return htmlParts.join("");
+    }
+
+    function restoreMessagesAfter(messageId, html) {
+        if (!messageId || !html) return;
+
+        const row = document.querySelector(`.message-row[data-message-id="${messageId}"]`);
+        if (!row) return;
+
+        row.insertAdjacentHTML("afterend", html);
+    }
+
+    function removeMessagesAfter(messageId) {
+        if (!messageId) return;
+
+        const rows = Array.from(document.querySelectorAll(".message-row"));
+        let found = false;
+
+        for (const row of rows) {
+            const rowId = row.getAttribute("data-message-id");
+
+            if (String(rowId) === String(messageId)) {
+                found = true;
+                continue;
+            }
+
+            if (found) {
+                row.remove();
+            }
+        }
+    }
+
+    function replaceUserRowMessageId(oldId, newId, newText, createdAt = "Now") {
+        const row = document.querySelector(`.user-row[data-message-id="${oldId}"]`);
+        if (!row) return false;
+
+        row.setAttribute("data-message-id", newId);
+
+        const bubble = row.querySelector(".user-message > .inline-block");
+        const time = row.querySelector(".message-time");
+        const editBtn = row.querySelector(".editMsgBtn");
+
+        if (bubble) bubble.innerHTML = nl2br(newText);
+        if (time) time.textContent = createdAt;
+        if (editBtn) {
+            editBtn.dataset.messageId = newId;
+            editBtn.dataset.message = newText;
+        }
+
+        return true;
+    }
+
+    function syncEditUI() {
+        const cancelBtn = document.getElementById("cancelEditBtn");
+        const ta = document.getElementById("chatMessage");
+        if (!cancelBtn || !ta) return;
+
+        if (state.isEditing) {
+            cancelBtn.classList.remove("hidden");
+            ta.placeholder = "Edit your message…";
+        } else {
+            cancelBtn.classList.add("hidden");
+            ta.placeholder = "Ask a question…";
+        }
+    }
+
     async function readSSE(resp, handlers) {
         const reader = resp.body.getReader();
         const decoder = new TextDecoder("utf-8");
-
         let buf = "";
 
         while (true) {
@@ -160,8 +288,7 @@
 
             buf += decoder.decode(value, { stream: true });
 
-            // split by SSE event separator
-            let parts = buf.split("\n\n");
+            const parts = buf.split("\n\n");
             buf = parts.pop() || "";
 
             for (const chunk of parts) {
@@ -177,7 +304,11 @@
                 if (!dataLine) continue;
 
                 let data;
-                try { data = JSON.parse(dataLine); } catch { data = { raw: dataLine }; }
+                try {
+                    data = JSON.parse(dataLine);
+                } catch {
+                    data = { raw: dataLine };
+                }
 
                 if (handlers[eventName]) handlers[eventName](data);
             }
@@ -191,7 +322,14 @@
         const ta = document.getElementById("chatMessage");
         if (!ta) return;
 
+        state.editingMessageId = btn.dataset.messageId || null;
+        state.originalTailHtml = snapshotMessagesAfter(state.editingMessageId);
+        state.isEditing = true;
+        syncEditUI();
+
         ta.value = btn.dataset.message || "";
+        removeMessagesAfter(state.editingMessageId);
+
         ta.focus();
         ta.style.height = "auto";
         ta.style.height = Math.min(140, ta.scrollHeight) + "px";
@@ -203,17 +341,35 @@
         const ta = document.getElementById("chatMessage");
         const chatScroll = document.getElementById("chatScroll");
         const btn = document.getElementById("sendBtn");
+        const cancelEditBtn = document.getElementById("cancelEditBtn");
 
         if (!root || !form || !ta || !chatScroll || !btn) return;
 
         const streamUrl = root.getAttribute("data-chat-stream-url") || "";
         const cancelUrl = root.getAttribute("data-chat-cancel-url") || "";
+        const resetUrl = root.getAttribute("data-chat-reset-url") || "";
+        const regenerateUrl = root.getAttribute("data-chat-regenerate-url") || "";
+        const resetBtn = document.getElementById("resetChatBtn");
         const csrf = form.querySelector('input[name="csrfmiddlewaretoken"]')?.value || "";
 
-        const resetUrl = root.getAttribute("data-chat-reset-url") || "";
-        const resetBtn = document.getElementById("resetChatBtn");
+        if (cancelEditBtn) {
+            cancelEditBtn.addEventListener("click", () => {
+                if (!state.isEditing || !state.editingMessageId) return;
 
-        const regenerateUrl = root.getAttribute("data-chat-regenerate-url") || "";
+                restoreMessagesAfter(state.editingMessageId, state.originalTailHtml);
+
+                state.editingMessageId = null;
+                state.originalTailHtml = null;
+                state.isEditing = false;
+
+                ta.value = "";
+                ta.style.height = "auto";
+                ta.style.height = Math.min(140, ta.scrollHeight) + "px";
+
+                syncEditUI();
+                scrollToBottom();
+            });
+        }
 
         if (resetBtn) {
             resetBtn.addEventListener("click", async () => {
@@ -234,22 +390,26 @@
                     if (!res.ok || !data.ok) throw new Error(data?.error || "Reset failed");
 
                     chatScroll.innerHTML = `
-                    <div id="chatEmptyState" class="grid place-items-center h-full">
-                        <div class="text-center">
-                            <div class="mx-auto mb-2 h-10 w-10 rounded-2xl bg-slate-100 dark:bg-slate-800"></div>
-                            <div class="text-sm font-medium text-slate-700 dark:text-slate-200">Start a conversation</div>
-                            <div class="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                                Ask a question about your document / notebook.
-                            </div>
-                            <div class="mt-3 text-xs text-slate-400">
-                                Tip: Enter = send • Shift+Enter = new line
+                        <div id="chatEmptyState" class="grid place-items-center h-full">
+                            <div class="text-center">
+                                <div class="mx-auto mb-2 h-10 w-10 rounded-2xl bg-slate-100 dark:bg-slate-800"></div>
+                                <div class="text-sm font-medium text-slate-700 dark:text-slate-200">Start a conversation</div>
+                                <div class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                                    Ask a question about your document / notebook.
+                                </div>
+                                <div class="mt-3 text-xs text-slate-400">
+                                    Tip: Enter = send • Shift+Enter = new line
+                                </div>
                             </div>
                         </div>
-                    </div>
-                `;
+                    `;
 
+                    state.editingMessageId = null;
+                    state.originalTailHtml = null;
+                    state.isEditing = false;
+                    syncEditUI();
                     if (window.showToast) window.showToast("Chat reset.", "success");
-                } catch (err) {
+                } catch (_) {
                     if (window.showToast) window.showToast("Reset failed.", "error");
                 }
             });
@@ -260,7 +420,15 @@
             if (!regenBtn) return;
 
             const userMessageId = regenBtn.dataset.messageId;
-            if (!userMessageId || !regenerateUrl) return;
+            if (!userMessageId || !regenerateUrl || state.isSending) return;
+
+            removeMessagesAfter(userMessageId);
+
+            const thinkingId = appendThinking(chatScroll);
+            scrollToBottom();
+
+            regenBtn.disabled = true;
+            regenBtn.classList.add("opacity-50", "cursor-not-allowed");
 
             try {
                 const body = new URLSearchParams();
@@ -278,9 +446,28 @@
                 const data = await res.json();
                 if (!res.ok || !data.ok) throw new Error(data?.error || "Regenerate failed");
 
-                window.location.reload();
-            } catch (err) {
+                setAssistantHtml(
+                    thinkingId,
+                    nl2br(data.assistant || ""),
+                    data.created_at || ""
+                );
+
+                setAssistantMeta(
+                    thinkingId,
+                    data.assistant_message_id,
+                    data.parent_user_message_id
+                );
+
+                scrollToBottom();
+
+                if (window.showToast) window.showToast("Regenerated.", "success");
+            } catch (_) {
+                const wrapper = document.getElementById(thinkingId);
+                if (wrapper) wrapper.remove();
                 if (window.showToast) window.showToast("Regenerate failed.", "error");
+            } finally {
+                regenBtn.disabled = false;
+                regenBtn.classList.remove("opacity-50", "cursor-not-allowed");
             }
         });
 
@@ -291,21 +478,20 @@
         ta.addEventListener("input", autoGrow);
         autoGrow();
 
-        // Enter = submit (เฉพาะตอนยังไม่ sending)
         ta.addEventListener("keydown", (e) => {
             if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 if (state.isSending) return;
                 if (ta.value.trim().length === 0) return;
-                form.requestSubmit ? form.requestSubmit() : form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+                form.requestSubmit
+                    ? form.requestSubmit()
+                    : form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
             }
         });
 
-        // ปุ่มเดียว: ถ้ากำลังส่ง → Cancel
         btn.addEventListener("click", async () => {
-            if (!state.isSending) return; // ตอนปกติให้ submit ตาม form
+            if (!state.isSending) return;
 
-            // cancel server best-effort
             try {
                 if (cancelUrl && state.requestId) {
                     const b = new URLSearchParams();
@@ -321,8 +507,9 @@
                 }
             } catch (_) { }
 
-            // abort client
-            try { state.controller?.abort(); } catch (_) { }
+            try {
+                state.controller?.abort();
+            } catch (_) { }
         });
 
         form.addEventListener("submit", async (e) => {
@@ -336,18 +523,27 @@
                 return;
             }
 
-            // new request id per message
             state.requestId = genRequestId();
 
-            // UI
+            const editingMessageId = state.editingMessageId;
+            state.editingMessageId = null;
+            state.isEditing = false;
+            syncEditUI();
+
             ta.value = "";
             autoGrow();
             removeEmptyState();
-            appendUser(chatScroll, text);
-            const thinkingId = appendThinking(chatScroll);
+
+            let thinkingId;
+            if (editingMessageId) {
+                thinkingId = appendThinking(chatScroll);
+            } else {
+                appendUser(chatScroll, text);
+                thinkingId = appendThinking(chatScroll);
+            }
+
             scrollToBottom();
 
-            // lock UI
             state.controller = new AbortController();
             ta.disabled = true;
             ta.placeholder = "Thinking…";
@@ -357,6 +553,10 @@
                 const body = new URLSearchParams();
                 body.set("message", text);
                 body.set("request_id", state.requestId);
+
+                if (editingMessageId) {
+                    body.set("edit_message_id", editingMessageId);
+                }
 
                 const resp = await fetch(streamUrl, {
                     method: "POST",
@@ -382,15 +582,12 @@
                         }
                     } catch (_) { }
 
-                    // แยกเคส 429 ให้ชัด
                     if (resp.status === 429) {
                         throw new Error(msg || "Daily limit reached. Please try again tomorrow.");
                     }
                     throw new Error(msg);
                 }
 
-
-                // update bubble as tokens arrive
                 let started = false;
 
                 await readSSE(resp, {
@@ -398,7 +595,6 @@
                         const t = d?.t || "";
                         if (!t) return;
 
-                        // first token remove "Thinking…"
                         if (!started) {
                             started = true;
                             state.assistantText = "";
@@ -407,21 +603,47 @@
                         state.assistantText += t;
                         setAssistantHtml(
                             thinkingId,
-                            escapeHtml(state.assistantText).replace(/\n/g, "<br>"),
-                            "" // ยังไม่ต้องใส่เวลา
+                            nl2br(state.assistantText),
+                            ""
                         );
                         scrollToBottom();
                     },
 
                     done: (d) => {
+                        state.originalTailHtml = null;
+                        state.isEditing = false;
+                        syncEditUI();
                         setAssistantHtml(
                             thinkingId,
-                            escapeHtml(state.assistantText || "").replace(/\n/g, "<br>") || `<span class="opacity-80">No response.</span>`,
+                            nl2br(state.assistantText || "") || `<span class="opacity-80">No response.</span>`,
                             d?.created_at || ""
                         );
 
-                        setLastUserEdit(d?.user_message_id, text);
-                        setAssistantRegenerate(thinkingId, d?.user_message_id);
+                        setAssistantMeta(
+                            thinkingId,
+                            d?.assistant_message_id,
+                            d?.user_message_id
+                        );
+
+                        if (editingMessageId) {
+                            replaceUserRowMessageId(
+                                editingMessageId,
+                                d?.user_message_id,
+                                text,
+                                d?.created_at || "Now"
+                            );
+                        } else {
+                            const userRows = document.querySelectorAll(".user-row");
+                            const lastUser = userRows[userRows.length - 1];
+                            if (lastUser && d?.user_message_id) {
+                                lastUser.setAttribute("data-message-id", d.user_message_id);
+                                const editBtn = lastUser.querySelector(".editMsgBtn");
+                                if (editBtn) {
+                                    editBtn.dataset.messageId = d.user_message_id;
+                                    editBtn.dataset.message = text;
+                                }
+                            }
+                        }
 
                         if (window.Usage && typeof window.Usage.refresh === "function") {
                             window.Usage.refresh({ reason: "chat_done" });
@@ -446,21 +668,26 @@
                     setAssistantHtml(thinkingId, `<span class="opacity-80">Canceled.</span>`, "");
                 } else {
                     const em = String(err?.message || err);
-
                     const isQuota = /daily|limit|quota|429/i.test(em);
                     const html = isQuota
                         ? `<span class="text-amber-700 dark:text-amber-300">Limit reached: ${escapeHtml(em)}<br><span class="opacity-80 text-[12px]">Tip: try again tomorrow or lower usage.</span></span>`
                         : `<span class="text-red-600 dark:text-red-300">Error: ${escapeHtml(em)}</span>`;
-
                     setAssistantHtml(thinkingId, html, "");
+                }
+
+                if (editingMessageId && state.originalTailHtml) {
+                    restoreMessagesAfter(editingMessageId, state.originalTailHtml);
+                    state.originalTailHtml = null;
+                    state.editingMessageId = null;
+                    state.isEditing = false;
+                    syncEditUI();
                 }
             } finally {
                 state.controller = null;
                 state.requestId = null;
-
                 ta.disabled = false;
-                ta.placeholder = "Ask a question…";
                 setButton(btn, false);
+                syncEditUI();
                 ta.focus();
                 scrollToBottom();
             }

@@ -41,8 +41,8 @@
 
             {% for m in chat_messages %}
             {% if m.role == "user" %}
-            <div class="flex justify-end">
-                <div class="max-w-[85%] sm:max-w-[70%] flex flex-col items-end">
+            <div class="flex justify-end message-row user-row" data-message-id="{{ m.id }}" data-role="user">
+                <div class="max-w-[85%] sm:max-w-[70%] flex flex-col items-end user-message">
                     <div class="flex items-center justify-end gap-2 mb-1">
                         <span class="text-xs text-slate-400">You</span>
                     </div>
@@ -52,21 +52,22 @@
                         {{ m.content|linebreaksbr }}
                     </div>
 
-                    <div class="mt-1 flex justify-end gap-3">
+                    <div class="mt-1 flex justify-end gap-3 user-actions">
                         <button type="button"
-                            class="editMsgBtn text-[11px] text-blue-600 hover:underline dark:text-blue-300 cursor-pointer"
+                            class="editMsgBtn text-[11px] text-blue-600 hover:underline dark:text-blue-300"
                             data-message-id="{{ m.id }}" data-message="{{ m.content|escapejs }}">
                             Edit
                         </button>
                     </div>
 
-                    <div class="mt-1 text-right text-[11px] text-slate-400">
+                    <div class="mt-1 text-right text-[11px] text-slate-400 message-time">
                         {{ m.created_at }}
                     </div>
                 </div>
             </div>
             {% else %}
-            <div class="flex justify-start gap-3">
+            <div class="flex justify-start gap-3 message-row assistant-row" data-message-id="{{ m.id }}"
+                data-role="assistant">
                 <div
                     class="mt-0.5 hidden sm:flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700">
                     AI
@@ -78,21 +79,23 @@
                     </div>
 
                     <div
-                        class="inline-block rounded-2xl rounded-tl-sm bg-slate-100 px-4 py-2.5 text-sm leading-relaxed text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-100 dark:ring-1 dark:ring-white/10">
+                        class="assistant-bubble inline-block wrap-break-word rounded-2xl rounded-tl-sm bg-slate-100 px-4 py-2.5 text-sm leading-relaxed text-slate-900 shadow-sm dark:bg-slate-900 dark:text-slate-100 dark:ring-1 dark:ring-white/10">
                         {{ m.content|linebreaksbr }}
                     </div>
 
                     {% if m.parent_message_id %}
-                    <div class="mt-1 flex justify-start  gap-3">
+                    <div class="mt-1 flex justify-start gap-3 assistant-actions">
                         <button type="button"
-                            class="regenMsgBtn text-[11px] text-slate-500 hover:underline dark:text-slate-300 cursor-pointer"
+                            class="regenMsgBtn text-[11px] text-slate-500 hover:underline dark:text-slate-300"
                             data-message-id="{{ m.parent_message_id }}">
                             Regenerate
                         </button>
                     </div>
+                    {% else %}
+                    <div class="mt-1 flex justify-start gap-3 assistant-actions"></div>
                     {% endif %}
 
-                    <div class="mt-1 text-[11px] text-slate-400">
+                    <div class="mt-1 text-[11px] text-slate-400 assistant-time">
                         {{ m.created_at }}
                     </div>
                 </div>
@@ -129,7 +132,14 @@
                     </div>
                 </div>
 
-                <button id="sendBtn" class="btn h-11.5 px-5 self-start cursor-pointer" type="submit">Send</button>
+                <div class="flex items-end self-start gap-2">
+                    <button id="cancelEditBtn" type="button" class="btn-outline h-11.5 px-4 hidden">
+                        Cancel edit
+                    </button>
+                    <button id="sendBtn" class="btn h-11.5 px-5 self-start cursor-pointer" type="submit">
+                        Send
+                    </button>
+                </div>
             </form>
         </div>
 
