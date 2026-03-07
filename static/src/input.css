@@ -3,13 +3,13 @@
 
 @layer components {
 
-    /* --- Buttons (ของเดิมดีแล้ว) --- */
+    /* --- Buttons --- */
     .btn {
-        @apply inline-flex items-center justify-center rounded-lg px-4 py-2 font-medium transition bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed;
+        @apply inline-flex items-center justify-center rounded-lg px-4 py-2 font-medium transition bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-brand-500 dark:text-slate-950 dark:hover:bg-brand-400;
     }
 
     .btn-outline {
-        @apply inline-flex items-center justify-center rounded-lg px-4 py-2 font-medium transition border border-slate-300 hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800;
+        @apply inline-flex items-center justify-center rounded-lg px-4 py-2 font-medium transition border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800;
     }
 
     /* 
@@ -26,7 +26,7 @@
     }
 
     .surface-muted {
-        @apply rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950;
+        @apply rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/60;
     }
 
     /* helper spacing */
@@ -40,7 +40,7 @@
     ========================================================== 
     */
     .input-shell {
-        @apply mt-1 flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus-within:ring-2 focus-within:ring-blue-200 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:ring-blue-500/20;
+        @apply mt-1 flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus-within:border-brand-400 focus-within:ring-4 focus-within:ring-brand-100 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:border-brand-500 dark:focus-within:ring-brand-500/15;
     }
 
     .input-field {
@@ -69,7 +69,7 @@
     }
 
     .table-head {
-        @apply bg-slate-50 text-slate-600 dark:bg-slate-950 dark:text-slate-300;
+        @apply bg-slate-50 text-slate-600 dark:bg-slate-900 dark:text-slate-300;
     }
 
     .table-th {
@@ -81,8 +81,9 @@
     }
 
     .table-row {
-        @apply hover:bg-slate-50/70 dark:hover:bg-slate-900/30;
+        @apply hover:bg-slate-50 dark:hover:bg-slate-800/40;
     }
+
 
     .table-td {
         @apply px-4 py-3;
@@ -110,22 +111,22 @@
     }
 
     .pill-success {
-        @apply bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200;
+        @apply bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300;
     }
 
     .pill-info {
-        @apply bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-200;
+        @apply bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300;
     }
 
     .pill-warning {
-        @apply bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200;
+        @apply bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300;
     }
 
     .pill-danger {
-        @apply bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-200;
+        @apply bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300;
     }
 
     .spin-dot {
-        @apply inline-block h-3 w-3 animate-spin rounded-full border-2 border-blue-300 border-t-blue-700 dark:border-blue-800 dark:border-t-blue-200;
+        @apply inline-block h-3 w-3 animate-spin rounded-full border-2 border-brand-300 border-t-brand-700 dark:border-brand-800 dark:border-t-brand-200;
     }
 }

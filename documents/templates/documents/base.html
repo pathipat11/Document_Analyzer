@@ -43,9 +43,8 @@
     {% endif %}
 </head>
 
-<body class="h-full bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100" 
-    {% if request.user.is_authenticated %} data-usage-url="{% url 'documents:usage_api' %}" {% endif %}>
-    <header class="border-b border-slate-200 bg-white/70 backdrop-blur dark:border-slate-800 dark:bg-slate-900/60">
+<body class="h-full bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100" {% if request.user.is_authenticated %} data-usage-url="{% url 'documents:usage_api' %}" {% endif %}>
+    <header class="border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
         <div class="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
             <a
                 href="{% if request.user.is_authenticated %}{% url 'documents:list' %}{% else %}{% url 'documents:home' %}{% endif %}">
@@ -68,21 +67,21 @@
                     <a href="{% url 'documents:list' %}"
                         class="px-3 py-2 text-sm font-medium rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100
                 dark:text-slate-300 dark:hover:text-white dark:hover:bg-slate-800/60
-                {% if request.resolver_match.url_name == 'list' %} bg-slate-100 text-slate-900 dark:bg-slate-800/70 dark:text-white {% endif %}">
+                {% if request.resolver_match.url_name == 'list' %} bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-200 {% endif %}">
                         Documents
                     </a>
 
                     <a href="{% url 'documents:upload' %}"
                         class="px-3 py-2 text-sm font-medium rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100
                 dark:text-slate-300 dark:hover:text-white dark:hover:bg-slate-800/60
-                {% if request.resolver_match.url_name == 'upload' %} bg-slate-100 text-slate-900 dark:bg-slate-800/70 dark:text-white {% endif %}">
+                {% if request.resolver_match.url_name == 'upload' %} bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-200 {% endif %}">
                         Upload
                     </a>
 
                     <a href="{% url 'documents:combined_list' %}"
                         class="px-3 py-2 text-sm font-medium rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100
                 dark:text-slate-300 dark:hover:text-white dark:hover:bg-slate-800/60
-                {% if request.resolver_match.url_name == 'combined_list' %} bg-slate-100 text-slate-900 dark:bg-slate-800/70 dark:text-white {% endif %}">
+                {% if request.resolver_match.url_name == 'combined_list' %} bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-200 {% endif %}">
                         Combined
                     </a>
                 </nav>
@@ -204,8 +203,7 @@
                         {% endwith %}
                     </summary>
 
-                    <div class="absolute right-0 mt-2 w-48 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg
-                    dark:border-slate-800 dark:bg-slate-900">
+                    <div class="absolute right-0 mt-2 w-48 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20">
                         <div class="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">
                             Signed in as
                             <div class="truncate font-medium text-slate-700 dark:text-slate-200">
@@ -302,8 +300,8 @@
                 border-amber-200 bg-amber-50 text-amber-800
                 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200
             {% else %}
-                border-blue-200 bg-blue-50 text-blue-800
-                dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200
+                border-brand-200 bg-brand-50 text-brand-800
+                dark:border-brand-800 dark:bg-brand-950/40 dark:text-brand-200
             {% endif %}
             ">
             {{ message }}
@@ -317,7 +315,7 @@
         {% block content %}{% endblock %}
     </main>
 
-    <footer class="mx-auto max-w-5xl px-4 pb-8 text-xs text-slate-500 dark:text-slate-400">
+    <footer class="mx-auto max-w-5xl px-4 pb-8 text-xs text-slate-500 dark:text-slate-500">
         <div class="border-t border-slate-200 pt-4 dark:border-slate-800">
             &copy; 2025 Document Analyzer. All rights reserved.
         </div>

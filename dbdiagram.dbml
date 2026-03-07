@@ -1,0 +1,134 @@
+Project DocumentAnalyzer {
+  database_type: "PostgreSQL"
+  Note: "DBML schema derived from the current Django models in accounts and documents apps."
+}
+
+Table auth_user {
+  id bigint [pk, increment]
+  password varchar(128)
+  last_login datetime [null]
+  is_superuser boolean
+  username varchar(150) [not null, unique]
+  first_name varchar(150)
+  last_name varchar(150)
+  email varchar(254)
+  is_staff boolean
+  is_active boolean
+  date_joined datetime
+
+  Note: "Django built-in user table used via settings.AUTH_USER_MODEL."
+}
+
+Table accounts_userprofile {
+  id bigint [pk, increment]
+  user_id bigint [not null, unique, ref: > auth_user.id]
+  phone varchar(30)
+  organization varchar(120)
+  job_title varchar(120)
+  bio text
+  avatar varchar(100) [null]
+  address_line1 varchar(200)
+  address_line2 varchar(200)
+  city varchar(120)
+  state varchar(120)
+  postal_code varchar(20)
+  country varchar(120)
+  date_of_birth date [null]
+  notify_email boolean [default: true]
+  notify_product boolean [default: true]
+  notify_security boolean [default: true]
+  updated_at datetime
+}
+
+Table documents_document {
+  id bigint [pk, increment]
+  owner_id bigint [null, ref: > auth_user.id]
+  file varchar(100)
+  file_name varchar(255)
+  file_ext varchar(20)
+  mime_type varchar(100)
+  extracted_text text
+  summary text
+  word_count integer [default: 0]
+  char_count integer [default: 0]
+  status varchar(20) [default: 'queued']
+  error text
+  processed_at datetime [null]
+  document_type varchar(50) [default: 'other']
+  search_vector tsvector [null]
+  uploaded_at datetime
+
+  indexes {
+    search_vector [name: "doc_search_vector_gin", type: gin]
+  }
+}
+
+Table documents_documentchunk {
+  id bigint [pk, increment]
+  document_id bigint [not null, ref: > documents_document.id]
+  idx integer [not null]
+  content text
+  created_at datetime
+
+  indexes {
+    (document_id, idx) [unique]
+  }
+}
+
+Table documents_combinedsummary {
+  id bigint [pk, increment]
+  owner_id bigint [not null, ref: > auth_user.id]
+  title varchar(200) [default: 'Combined Summary']
+  combined_summary text
+  doc_count integer [default: 0]
+  total_words integer [default: 0]
+  created_at datetime
+}
+
+Table documents_combinedsummary_documents {
+  id bigint [pk, increment]
+  combinedsummary_id bigint [not null, ref: > documents_combinedsummary.id]
+  document_id bigint [not null, ref: > documents_document.id]
+
+  indexes {
+    (combinedsummary_id, document_id) [unique]
+  }
+
+  Note: "Auto-generated many-to-many join table for CombinedSummary.documents."
+}
+
+Table documents_conversation {
+  id bigint [pk, increment]
+  owner_id bigint [not null, ref: > auth_user.id]
+  document_id bigint [null, ref: > documents_document.id]
+  notebook_id bigint [null, ref: > documents_combinedsummary.id]
+  title varchar(255)
+  created_at datetime
+
+  Note: "Exactly one of document_id or notebook_id should be non-null."
+}
+
+Table documents_message {
+  id bigint [pk, increment]
+  conversation_id bigint [not null, ref: > documents_conversation.id]
+  role varchar(10) [not null, note: "user | assistant | system"]
+  content text [not null]
+  parent_message_id bigint [null, ref: > documents_message.id]
+  edited_from_id bigint [null, ref: > documents_message.id]
+  is_active boolean [default: true]
+  created_at datetime
+}
+
+Table documents_llmcalllog {
+  id bigint [pk, increment]
+  owner_id bigint [null, ref: > auth_user.id]
+  provider varchar(30) [default: 'bedrock']
+  model_id varchar(255)
+  purpose varchar(50)
+  ok boolean [default: true]
+  error text
+  latency_ms integer [default: 0]
+  input_tokens integer [default: 0]
+  output_tokens integer [default: 0]
+  created_at datetime
+}
