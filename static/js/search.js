@@ -7,6 +7,7 @@ const toInput = document.getElementById("toInput");
 const docsCount = document.getElementById("docsCount");
 const searchStatus = document.getElementById("searchStatus");
 const csrfToken = document.querySelector('input[name="csrfmiddlewaretoken"]')?.value || "";
+const pager = document.getElementById("docsPager");
 
 if (qInput && typeSelect && fromInput && toInput && tbody) {
     let timer = null;
@@ -104,6 +105,47 @@ if (qInput && typeSelect && fromInput && toInput && tbody) {
         return JSON.stringify(p);
     }
 
+    function buildPager(page, numPages, params) {
+        if (!pager) return;
+
+        if (!numPages || numPages <= 1) {
+            pager.classList.add("hidden");
+            pager.innerHTML = "";
+            return;
+        }
+
+        const buildHref = (targetPage) => {
+            const qs = new URLSearchParams();
+            if (params.q) qs.set("q", params.q);
+            if (params.type) qs.set("type", params.type);
+            if (params.from) qs.set("from", params.from);
+            if (params.to) qs.set("to", params.to);
+            qs.set("page", String(targetPage));
+            return `?${qs.toString()}`;
+        };
+
+        pager.classList.remove("hidden");
+        pager.className = "table-footer flex items-center justify-between";
+
+        pager.innerHTML = `
+            <div class="text-xs text-slate-500 dark:text-slate-400">
+                Page ${page} of ${numPages}
+            </div>
+
+            <div class="flex items-center gap-2">
+                ${page > 1
+                ? `<a class="btn-outline pager-link" data-no-global-loader="1" href="${buildHref(page - 1)}" data-page="${page - 1}">Prev</a>`
+                : `<span class="btn-outline opacity-50 cursor-not-allowed">Prev</span>`
+            }
+
+                ${page < numPages
+                ? `<a class="btn-outline pager-link" data-no-global-loader="1" href="${buildHref(page + 1)}" data-page="${page + 1}">Next</a>`
+                : `<span class="btn-outline opacity-50 cursor-not-allowed">Next</span>`
+            }
+            </div>
+        `;
+    }
+
     async function runSearch() {
         const p = getParams();
         const sig = signature(p);
@@ -156,6 +198,8 @@ if (qInput && typeSelect && fromInput && toInput && tbody) {
 
             if (docsCount) docsCount.textContent = `${data.count ?? 0} documents`;
 
+            buildPager(data.page || 1, data.num_pages || 1, p);
+
             setUrlParams(p);
 
         } catch (err) {
@@ -168,6 +212,21 @@ if (qInput && typeSelect && fromInput && toInput && tbody) {
             if (searchStatus) searchStatus.classList.add("hidden");
         }
     }
+
+    document.addEventListener("click", (e) => {
+        const link = e.target.closest(".pager-link");
+        if (!link) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        const targetPage = parseInt(link.dataset.page || "1", 10);
+        if (!Number.isFinite(targetPage) || targetPage < 1) return;
+
+        livePage = targetPage;
+        lastSig = "";
+        runSearch();
+    });
 
     function scheduleSearch({ resetPage = false } = {}) {
         if (resetPage) livePage = 1;

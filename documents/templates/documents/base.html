@@ -44,7 +44,7 @@
 </head>
 
 <body class="h-full bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100" {% if request.user.is_authenticated %} data-usage-url="{% url 'documents:usage_api' %}" {% endif %}>
-    <header class="border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
+    <header class="relative z-40 border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
         <div class="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
             <a
                 href="{% if request.user.is_authenticated %}{% url 'documents:list' %}{% else %}{% url 'documents:home' %}{% endif %}">
@@ -203,7 +203,7 @@
                         {% endwith %}
                     </summary>
 
-                    <div class="absolute right-0 mt-2 w-48 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20">
+                    <div class="absolute right-0 z-50 mt-2 w-48 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20">
                         <div class="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">
                             Signed in as
                             <div class="truncate font-medium text-slate-700 dark:text-slate-200">

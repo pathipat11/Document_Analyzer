@@ -20,21 +20,16 @@
 
                 <div>
                     <label class="text-xs font-medium text-slate-600 dark:text-slate-300">Keyword</label>
-                    <div
-                        class="input-shell">
-                        <input id="combinedQ" placeholder="Search combined summaries…"
-                            class="input-field" />
-                        <button id="combinedClear" type="button"
-                            class="input-clear"
-                            title="Clear keyword">✕</button>
+                    <div class="input-shell">
+                        <input id="combinedQ" placeholder="Search combined summaries…" class="input-field" />
+                        <button id="combinedClear" type="button" class="input-clear" title="Clear keyword">✕</button>
                     </div>
                 </div>
 
                 <div>
                     <label class="text-xs font-medium text-slate-600 dark:text-slate-300">Sort</label>
-                    <div
-                        class="mt-1 flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus-within:ring-2 focus-within:ring-blue-200 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:ring-blue-500/20">
-                        <select id="combinedSort" class="w-full bg-transparent outline-none dark:text-slate-100">
+                    <div class="input-shell">
+                        <select id="combinedSort" class="input-field">
                             <option value="newest">Newest</option>
                             <option value="oldest">Oldest</option>
                             <option value="title">Title</option>
@@ -56,60 +51,60 @@
     </div>
 
 
-    <div class="surface overflow-hidden">
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-                <thead class="bg-slate-50 text-slate-600 dark:bg-slate-950 dark:text-slate-300">
+    <div class="table-shell">
+        <div class="table-wrap">
+            <table class="table">
+                <thead class="table-head">
                     <tr>
-                        <th class="px-4 py-3 text-left font-medium">Title</th>
-                        <th class="px-4 py-3 text-left font-medium">Docs</th>
-                        <th class="px-4 py-3 text-left font-medium">Words</th>
-                        <th class="px-4 py-3 text-left font-medium">Created</th>
-                        <th class="px-4 py-3 text-left font-medium">Chat</th>
-                        <th class="px-4 py-3 text-left font-medium">Actions</th>
+                        <th class="table-th">Title</th>
+                        <th class="table-th">Docs</th>
+                        <th class="table-th">Words</th>
+                        <th class="table-th">Created</th>
+                        <th class="table-th">Chat</th>
+                        <th class="table-th">Actions</th>
                     </tr>
                 </thead>
 
                 <tbody id="combinedTbody" data-search-url="{% url 'documents:combined_search_api' %}"
-                    class="divide-y divide-slate-200 dark:divide-slate-800">
+                    class="table-body">
 
                     {% for x in items %}
-                    <tr class="hover:bg-slate-50/70 dark:hover:bg-slate-900/30">
-                        <td class="px-4 py-3 min-w-60">
+                    <tr class="table-row">
+                        <td class="table-td min-w-60">
                             <div class="flex items-center gap-2 min-w-0">
                                 {% if x.has_chat %}
                                 <span class="mt-0.5 select-none text-xs">💬</span>
                                 {% endif %}
 
-                                <a class="font-medium text-blue-700 hover:underline dark:text-blue-300 truncate"
+                                <a class="font-medium text-brand-700 hover:underline dark:text-blue-300 truncate"
                                     href="{% url 'documents:combined_detail' x.pk %}">
                                     {{ x.title }}
                                 </a>
                             </div>
                         </td>
 
-                        <td class="px-4 py-3 whitespace-nowrap">
+                        <td class="table-td whitespace-nowrap">
                             <span
-                                class="inline-flex items-center rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                                class="pill pill-neutral">
                                 {{ x.doc_count }} docs
                             </span>
                         </td>
 
-                        <td class="px-4 py-3">
+                        <td class="table-td">
                             {{ x.total_words }}
                         </td>
 
-                        <td class="px-4 py-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                        <td class="table-td text-slate-600 dark:text-slate-300 whitespace-nowrap">
                             {{ x.created_at|date:"j M Y H:i" }}
                         </td>
 
-                        <td class="px-4 py-3">
+                        <td class="table-td">
                             <a class="btn-outline" href="{% url 'documents:chat_notebook' x.pk %}">
                                 {% if x.has_chat %}Continue{% else %}Chat{% endif %}
                             </a>
                         </td>
 
-                        <td class="px-4 py-3">
+                        <td class="table-td">
                             <button type="button" class="combinedDeleteBtn btn-outline text-red-400 dark:text-red-300"
                                 data-delete-url="{% url 'documents:combined_delete' x.pk %}"
                                 data-title="{{ x.title|escapejs }}">
@@ -124,11 +119,11 @@
         </div>
 
         <div
-            class="border-t border-slate-200 px-4 py-3 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
+            class="table-footer">
             Tip: Use keyword search + sorting to manage large notebooks faster.
         </div>
 
-        <div id="combinedPager" class="border-t border-slate-200 px-4 py-3 dark:border-slate-800 hidden"></div>
+        <div id="combinedPager" class="table-footer hidden"></div>
     </div>
 
 </div>

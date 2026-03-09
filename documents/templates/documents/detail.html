@@ -3,7 +3,7 @@
 
 {% block content %}
 <div class="grid grid-cols-1 gap-5 lg:grid-cols-3">
-    <div class="p-6 lg:col-span-1">
+    <div class="surface p-6 lg:col-span-1 h-fit">
         <h1 class="text-lg font-semibold">Document</h1>
         <dl class="mt-4 space-y-2 text-sm">
             <div class="flex justify-between gap-3">
@@ -20,7 +20,9 @@
             </div>
             <div class="flex justify-between gap-3">
                 <dt class="text-slate-500 dark:text-slate-400">Type</dt>
-                <dd class="text-right">{{ doc.document_type }}</dd>
+                <dd class="text-right">
+                    <span class="pill pill-neutral">{{ doc.document_type }}</span>
+                </dd>
             </div>
             <div class="flex justify-between gap-3">
                 <dt class="text-slate-500 dark:text-slate-400">Words</dt>
@@ -122,7 +124,7 @@
         <div class="surface p-6 lg:col-span-1">
             <h2 class="text-lg font-semibold">Preview</h2>
             <pre
-                class="mt-3 whitespace-pre-wrap rounded-xl bg-slate-100 p-4 text-xs text-slate-800 dark:bg-slate-950 dark:text-slate-200">{{ doc.extracted_text|truncatechars:1800|default:"(not extracted yet)" }}</pre>
+                class="mt-3 whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-xs text-slate-800 dark:bg-slate-950/60 dark:text-slate-200">{{ doc.extracted_text|truncatechars:1800|default:"(not extracted yet)" }}</pre>
         </div>
     </div>
 </div>
