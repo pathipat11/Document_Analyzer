@@ -11,6 +11,25 @@ It is not just an upload screen with an AI summary. The project covers the full 
 5. index documents for search
 6. support grounded chat against one document or many documents
 
+## Current project features
+
+The current codebase already includes these user-facing features:
+
+- User registration, login, logout, profile editing, password change, password reset, account deactivation, and account deletion
+- Multi-file upload with request-level validation for file count, file size, total upload size, and allowed extensions
+- Support for `.txt`, `.csv`, `.pdf`, and `.docx`
+- Text extraction, sanitization, word counting, character counting, and processing status tracking per document
+- AI-generated summaries and fixed-label document classification
+- PostgreSQL full-text search with ranked results, snippets, date filters, document-type filters, and pagination
+- Notebook-style combined summaries built from multiple documents
+- Chat against a single document or a multi-document notebook
+- Streaming chat responses with Server-Sent Events
+- Conversation reset, answer regeneration, and branching after user edits
+- Token budget tracking and daily LLM call guardrails
+- CSV export for the document list
+- Secure file access through ownership checks and short-lived presigned S3 URLs
+- Health check and usage API endpoints for frontend/status integration
+
 ## What the system does
 
 - Upload one or many files in a single request
@@ -22,6 +41,7 @@ It is not just an upload screen with an AI summary. The project covers the full 
 - Create notebook-style summaries across multiple documents
 - Chat with a single document or a combined notebook
 - Track usage and enforce LLM quotas
+- Export document results as CSV
 - Serve document files securely through presigned S3 URLs
 
 ## System at a glance
@@ -301,6 +321,12 @@ This keeps uploaded files private while still allowing secure preview and downlo
 
 - `/accounts/*`
   authentication, profile, and password reset flows
+
+- `/export/csv/`
+  export the current document set as CSV
+
+- `/api/usage/`
+  usage and quota status for the frontend
 
 - `/health/`
   health check endpoint
