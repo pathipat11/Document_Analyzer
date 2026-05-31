@@ -1,4 +1,5 @@
 import csv, json, boto3, re
+from functools import lru_cache
 from pathlib import Path
 from datetime import datetime, timedelta
 from django.urls import reverse
@@ -8,7 +9,6 @@ from django.core.cache import cache
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.postgres.search import SearchQuery, SearchRank, SearchHeadline
-from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods, require_POST, require_GET
 from django.http import JsonResponse, HttpResponse, StreamingHttpResponse
 from django.core.paginator import Paginator
@@ -20,10 +20,9 @@ from urllib.parse import urlencode, quote
 
 from documents.services.llm.token_ledger import get_all_status
 from documents.services.upload.upload_validation import validate_files, get_limits
-from documents.services.analysis.combined_summarizer import build_combined_summary, build_combined_title_and_summary
+from documents.services.analysis.combined_summarizer import build_combined_title_and_summary
 from documents.services.pipeline.processor import process_document
 from documents.services.chat.chat_service import answer_chat, answer_chat_stream
-from documents.services.llm.guardrails import check_daily_limit
 from documents.services.llm.client import LLMError
 from .models import Document, CombinedSummary, Conversation, Message
 
@@ -214,6 +213,7 @@ def delete_document(request, pk: int):
     return redirect("documents:list")
 
 @login_required
+@require_POST
 def reprocess_document(request, pk: int):
     doc = get_object_or_404(Document, pk=pk, owner=request.user)
     process_document(doc)
@@ -294,6 +294,11 @@ def search_documents_api(request):
     })
 
 
+@lru_cache(maxsize=1)
+def _s3_client():
+    return boto3.client("s3", region_name=settings.AWS_S3_REGION_NAME)
+
+
 def _ascii_filename_fallback(name: str) -> str:
     """
     ทำชื่อไฟล์ให้เป็น ASCII ปลอดภัยสำหรับ header
@@ -319,14 +324,8 @@ def document_file(request, pk: int):
 
     # doc.file.name = path แบบ relative ต่อ storage (ไม่มี "media/")
     key = doc.file.name
-    # location = (getattr(settings, "AWS_LOCATION", "") or "").strip("/")
 
-    # if location:
-    #     key = f"{location}/{key.lstrip('/')}"
-
-    s3 = boto3.client("s3", region_name=settings.AWS_S3_REGION_NAME)
-
-    url = s3.generate_presigned_url(
+    url = _s3_client().generate_presigned_url(
         ClientMethod="get_object",
         Params={
             "Bucket": settings.AWS_STORAGE_BUCKET_NAME,
@@ -334,7 +333,7 @@ def document_file(request, pk: int):
             "ResponseContentDisposition": _content_disposition_inline(doc.file_name),
             "ResponseContentType": doc.mime_type or "application/octet-stream",
         },
-        ExpiresIn=60,
+        ExpiresIn=300,
     )
     return redirect(url)
 

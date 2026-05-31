@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
 
 load_dotenv()
 
@@ -24,7 +25,19 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret-key")
 DEBUG = os.getenv("DJANGO_DEBUG", "0") == "1"
-ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
+
+# Hosts are read from env (comma separated). Falls back to localhost for dev.
+ALLOWED_HOSTS = [
+    h.strip()
+    for h in os.getenv("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
+    if h.strip()
+]
+
+# In production (DEBUG=False) refuse to start with the insecure default key.
+if not DEBUG and SECRET_KEY == "dev-secret-key":
+    raise ImproperlyConfigured(
+        "DJANGO_SECRET_KEY must be set to a unique value when DEBUG is False."
+    )
 
 # Application definition
 
@@ -126,7 +139,8 @@ STATIC_URL = 'static/'
 
 STATICFILES_DIRS = [BASE_DIR / "static"]
 
-MEDIA_URL = "/media/"
+# Local media root, used for static serving in DEBUG only.
+# In all environments the effective MEDIA_URL is the S3 URL defined below.
 MEDIA_ROOT = BASE_DIR / "media"
 
 # (optional) ค่าพื้นฐานสำหรับ validation
@@ -207,9 +221,42 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 SITE_DOMAIN = os.getenv("SITE_DOMAIN", "127.0.0.1:8000")
 SITE_PROTOCOL = os.getenv("SITE_PROTOCOL", "http")
 
-# CACHES = {
-#     "default": {
-#         "BACKEND": "django.core.cache.backends.redis.RedisCache",
-#         "LOCATION": os.getenv("REDIS_URL", "redis://127.0.0.1:6379/1"),
-#     }
-# }
+# Cache
+# Guardrails (daily call limits) and the token ledger rely on a SHARED cache.
+# Without a shared backend such as Redis, those limits are counted per-process
+# and can be bypassed when running multiple workers. Set REDIS_URL in production.
+REDIS_URL = os.getenv("REDIS_URL", "")
+if REDIS_URL:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": REDIS_URL,
+        }
+    }
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "document-analyzer-locmem",
+        }
+    }
+
+# Security
+# These are no-ops in local dev (DEBUG=True) and enforced in production.
+if not DEBUG:
+    SECURE_SSL_REDIRECT = os.getenv("SECURE_SSL_REDIRECT", "1") == "1"
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = int(os.getenv("SECURE_HSTS_SECONDS", "31536000"))  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    X_FRAME_OPTIONS = "DENY"
+
+    # Hosts/origins allowed to submit CSRF-protected forms (comma separated).
+    CSRF_TRUSTED_ORIGINS = [
+        o.strip()
+        for o in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",")
+        if o.strip()
+    ]

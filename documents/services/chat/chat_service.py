@@ -66,20 +66,6 @@ def _notebook_context(nb: CombinedSummary) -> str:
 
     return "\n\n".join(parts).strip()
 
-def _looks_general_question(q: str) -> bool:
-    ql = (q or "").strip().lower()
-    if not ql:
-        return True
-
-    greetings = ("สวัสดี", "hello", "hi", "hey")
-    if ql.startswith(greetings) and len(ql) <= 12:
-        return True
-
-    if len(ql) <= 10:
-        return True
-
-    return False
-
 def _build_context(conv: Conversation, question: str) -> str:
     q = (question or "").strip()
     if not q:

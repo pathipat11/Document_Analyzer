@@ -79,7 +79,7 @@ def retrieve_top_chunks(doc_id: int, query: str, k: int = 6):
     q_terms = set(qcount.keys())
 
     scored = []
-    for ch in DocumentChunk.objects.filter(document_id=doc_id):
+    for ch in DocumentChunk.objects.filter(document_id=doc_id).only("idx", "content"):
         w = _tok(ch.content)
         if not w:
             continue

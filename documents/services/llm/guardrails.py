@@ -3,14 +3,11 @@ from django.conf import settings
 from django.utils import timezone
 from datetime import timedelta, datetime
 
+from documents.services.llm.token_ledger import _normalize_purpose
+
 def _today_key(user_id: int, purpose: str = "chat") -> str:
     today = timezone.localdate()
-    purpose = (purpose or "chat").strip().lower()
-    if purpose in ("chat_stream",):
-        purpose = "chat"
-    elif purpose in ("summarize", "classify", "title", "combined", "upload"):
-        purpose = "upload"
-    return f"llm_calls:{user_id}:{today.isoformat()}:{purpose}"
+    return f"llm_calls:{user_id}:{today.isoformat()}:{_normalize_purpose(purpose)}"
 
 def _seconds_until_tomorrow() -> int:
     tz = timezone.get_current_timezone()
