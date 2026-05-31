@@ -1,5 +1,7 @@
 # Document Analyzer
 
+[![CI](https://github.com/pathipat11/Document_Analyzer/actions/workflows/ci.yml/badge.svg)](https://github.com/pathipat11/Document_Analyzer/actions/workflows/ci.yml)
+
 `Document Analyzer` is a Django application for ingesting documents, extracting text, analyzing content with an LLM, and turning the result into something users can search, summarize, and chat with.
 
 It is not just an upload screen with an AI summary. The project covers the full document workflow:
@@ -328,6 +330,9 @@ This keeps uploaded files private while still allowing secure preview and downlo
 - `/api/usage/`
   usage and quota status for the frontend
 
+- `/api/status/`
+  processing status for a set of documents, used for real-time polling
+
 - `/health/`
   health check endpoint
 
@@ -353,6 +358,7 @@ The classifier assigns one of these labels:
 - Ollama
 - AWS Bedrock
 - Amazon S3 via `django-storages`
+- Celery + Redis (optional, for async processing)
 - Server-Sent Events
 
 ## Setup
@@ -432,10 +438,51 @@ npm run watch:css
 python manage.py runserver
 ```
 
+### 6. (Optional) Run document processing in the background
+
+By default uploads are processed synchronously inside the request. To offload
+processing to a Celery worker, set `PROCESS_DOCUMENTS_ASYNC=1` (and a broker via
+`REDIS_URL` or `CELERY_BROKER_URL`), then run a worker:
+
+```bash
+celery -A config worker -l info
+```
+
+When async mode is on, uploads return immediately and documents move through
+`queued` -> `processing` -> `done`. Auto-combine uploads build the notebook
+summary in a follow-up task once all files finish.
+
+The document list and detail pages poll `/api/status/` and update each
+document's status pill (and type/word counts) in real time, so users see
+progress without refreshing. Polling stops automatically once every tracked
+document reaches a terminal state.
+
+### Running tests
+
+```bash
+python manage.py test
+```
+
+The suite covers upload validation, chunking, text extraction, retrieval,
+guardrails/token ledger, the processing pipeline, model constraints, and the
+async dispatch path. Tests run with the LLM disabled and use in-memory storage,
+so they need a PostgreSQL server but no S3 or model access.
+
+### Continuous integration
+
+GitHub Actions runs on every push and pull request to `main`
+(`.github/workflows/ci.yml`):
+
+- **Django tests**: spins up a PostgreSQL service, runs system checks,
+  verifies migrations are complete, and runs the full test suite.
+- **Build CSS**: installs npm dependencies and builds the Tailwind bundle.
+- **Production settings check**: runs `manage.py check --deploy` with
+  `DEBUG=0` to catch missing security settings before deploy.
+
 ## Current limitations
 
 - PDF support is text extraction only. There is no OCR pipeline.
-- Upload processing is synchronous, so large batches block the request until processing finishes.
+- Upload processing is synchronous by default. Set `PROCESS_DOCUMENTS_ASYNC=1` with a Celery worker to process large batches in the background.
 - Search depends on PostgreSQL-specific features from `django.contrib.postgres`.
 - Token usage is cache-backed; for multi-instance deployments, a shared cache such as Redis is a better fit.
 - The default media configuration is S3-backed. If you want purely local file storage, you need to adjust the storage settings.

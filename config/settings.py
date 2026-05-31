@@ -241,6 +241,22 @@ else:
         }
     }
 
+# Async document processing (Celery)
+# When enabled, uploads/reprocessing run in a background worker instead of
+# blocking the request. Defaults to OFF so the app keeps working without a
+# broker in development.
+PROCESS_DOCUMENTS_ASYNC = os.getenv("PROCESS_DOCUMENTS_ASYNC", "0") == "1"
+
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", REDIS_URL or "redis://127.0.0.1:6379/0")
+CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", CELERY_BROKER_URL)
+CELERY_TASK_ALWAYS_EAGER = os.getenv("CELERY_TASK_ALWAYS_EAGER", "0") == "1"
+CELERY_TASK_EAGER_PROPAGATES = True
+CELERY_TASK_ACKS_LATE = True
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_TASK_TIME_LIMIT = int(os.getenv("CELERY_TASK_TIME_LIMIT", "600"))
+CELERY_TASK_SOFT_TIME_LIMIT = int(os.getenv("CELERY_TASK_SOFT_TIME_LIMIT", "540"))
+CELERY_TIMEZONE = TIME_ZONE
+
 # Security
 # These are no-ops in local dev (DEBUG=True) and enforced in production.
 if not DEBUG:

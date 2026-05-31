@@ -46,7 +46,11 @@
                         <select id="typeSelect" name="type" class="input-field">
                             <option value="">All</option>
                             {% for t in type_choices %}
-                            <option value="{{ t }}" {% if dtype == t %}selected{% endif %}>{{ t }}</option>
+                            {% if dtype == t %}
+                            <option value="{{ t }}" selected>{{ t }}</option>
+                            {% else %}
+                            <option value="{{ t }}">{{ t }}</option>
+                            {% endif %}
                             {% endfor %}
                         </select>
                     </div>
@@ -138,7 +142,8 @@
 
                     <tbody id="docsTbody" data-search-url="{% url 'documents:search_api' %}" class="table-body">
                         {% for d in docs %}
-                        <tr class="table-row">
+                        <tr class="table-row" data-doc-id="{{ d.id }}"
+                            data-doc-status="{{ d.status|default_if_none:'' }}" data-doc-name="{{ d.file_name }}">
                             <td class="table-td">
                                 <input type="checkbox" name="doc_ids" value="{{ d.id }}"
                                     class="docCheckbox h-4 w-4 rounded border-slate-300 dark:border-slate-700"
@@ -156,7 +161,7 @@
                                 </a>
 
                                 <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                                    {{ d.char_count }} chars
+                                    <span data-doc-chars-for="{{ d.id }}">{{ d.char_count }}</span> chars
                                 </div>
 
                                 {% if q and d.snippet %}
@@ -169,12 +174,12 @@
 
 
                             <td class="table-td">
-                                <span class="pill pill-neutral">
+                                <span class="pill pill-neutral" data-doc-type-for="{{ d.id }}">
                                     {{ d.document_type }}
                                 </span>
                             </td>
 
-                            <td class="table-td">{{ d.word_count }}</td>
+                            <td class="table-td"><span data-doc-words-for="{{ d.id }}">{{ d.word_count }}</span></td>
                             <td class="table-td text-slate-600 dark:text-slate-300">
                                 {{ d.uploaded_at|date:"j M Y H:i" }}
                             </td>

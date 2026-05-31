@@ -22,6 +22,7 @@ from documents.services.llm.token_ledger import get_all_status
 from documents.services.upload.upload_validation import validate_files, get_limits
 from documents.services.analysis.combined_summarizer import build_combined_title_and_summary
 from documents.services.pipeline.processor import process_document
+from documents.services.pipeline.dispatch import enqueue_processing
 from documents.services.chat.chat_service import answer_chat, answer_chat_stream
 from documents.services.llm.client import LLMError
 from .models import Document, CombinedSummary, Conversation, Message
@@ -61,8 +62,16 @@ def upload_document(request):
                 file_ext=ext,
                 mime_type=mime,
             )
-            process_document(doc)
             created.append(doc)
+
+        async_mode = getattr(settings, "PROCESS_DOCUMENTS_ASYNC", False)
+
+        if async_mode:
+            return _dispatch_async_upload(request, created, auto_combine, title)
+
+        # --- synchronous path (default) ---
+        for doc in created:
+            process_document(doc)
 
         if auto_combine and len(created) >= 2:
             ai_title, combined_text = build_combined_title_and_summary(created, owner=request.user)
@@ -87,6 +96,39 @@ def upload_document(request):
         return redirect("documents:list")
 
     return render(request, "documents/upload.html", {"limits": limits})
+
+
+def _dispatch_async_upload(request, created, auto_combine, title):
+    """Queue background processing for uploaded docs and redirect immediately."""
+    from celery import chord, group
+    from documents.tasks import process_document_task, build_combined_summary_task
+
+    for doc in created:
+        if doc.status != "queued":
+            doc.status = "queued"
+            doc.save(update_fields=["status"])
+
+    if auto_combine and len(created) >= 2:
+        # Process all docs, then build the combined summary as the callback.
+        header = group(process_document_task.s(d.id) for d in created)
+        callback = build_combined_summary_task.s(request.user.id, title)
+        chord(header)(callback)
+        messages.success(
+            request,
+            f"Uploaded {len(created)} files. Processing and combined summary are running in the background.",
+        )
+        return redirect("documents:combined_list")
+
+    for doc in created:
+        process_document_task.delay(doc.id)
+
+    messages.success(
+        request,
+        f"Uploaded {len(created)} file(s). Processing in the background.",
+    )
+    if len(created) == 1:
+        return redirect("documents:detail", pk=created[0].pk)
+    return redirect("documents:list")
 
 @login_required
 def document_detail(request, pk: int):
@@ -216,7 +258,9 @@ def delete_document(request, pk: int):
 @require_POST
 def reprocess_document(request, pk: int):
     doc = get_object_or_404(Document, pk=pk, owner=request.user)
-    process_document(doc)
+    is_async = enqueue_processing(doc)
+    if is_async:
+        messages.success(request, "Reprocessing started in the background.")
     return redirect("documents:detail", pk=doc.pk)
 
 @login_required
@@ -275,6 +319,8 @@ def search_documents_api(request):
             "id": d.id,
             "file_name": d.file_name,
             "document_type": d.document_type,
+            "status": d.status or "",
+            "error": (d.error or "").strip(),
             "word_count": d.word_count,
             "char_count": d.char_count,
             "uploaded_at": timezone.localtime(d.uploaded_at).strftime("%-d %b %Y %H:%M"),
@@ -297,6 +343,39 @@ def search_documents_api(request):
 @lru_cache(maxsize=1)
 def _s3_client():
     return boto3.client("s3", region_name=settings.AWS_S3_REGION_NAME)
+
+
+@login_required
+@require_GET
+def documents_status_api(request):
+    """
+    Lightweight status endpoint for polling.
+
+    Accepts a comma-separated `ids` query param and returns the current
+    processing state for the caller's own documents. Used by the document
+    list and detail pages to reflect background processing in real time.
+    """
+    raw = (request.GET.get("ids") or "").strip()
+    ids = [int(x) for x in raw.split(",") if x.strip().isdigit()]
+    ids = ids[:100]  # cap to avoid abuse
+
+    items = []
+    if ids:
+        qs = Document.objects.filter(owner=request.user, id__in=ids).only(
+            "id", "status", "error", "document_type", "word_count", "char_count", "summary"
+        )
+        for d in qs:
+            items.append({
+                "id": d.id,
+                "status": d.status or "",
+                "document_type": d.document_type,
+                "word_count": d.word_count,
+                "char_count": d.char_count,
+                "has_summary": bool((d.summary or "").strip()),
+                "error": (d.error or "").strip(),
+            })
+
+    return JsonResponse({"ok": True, "items": items})
 
 
 def _ascii_filename_fallback(name: str) -> str:

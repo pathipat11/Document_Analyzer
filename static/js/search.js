@@ -42,7 +42,7 @@ if (qInput && typeSelect && fromInput && toInput && tbody) {
     };
 
     function buildRow(d) {
-        const chip = `<span class="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">${esc(d.document_type || "")}</span>`;
+        const chip = `<span class="inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200" data-doc-type-for="${d.id}">${esc(d.document_type || "")}</span>`;
         const chatLabel = d.has_chat ? "Continue" : "Chat";
         const bubble = d.has_chat ? `<span class="mt-0.5 select-none text-xs">💬</span>` : "";
 
@@ -51,7 +51,7 @@ if (qInput && typeSelect && fromInput && toInput && tbody) {
             : "";
 
         return `
-        <tr class="hover:bg-slate-50/70 dark:hover:bg-slate-900/30">
+        <tr class="hover:bg-slate-50/70 dark:hover:bg-slate-900/30" data-doc-id="${d.id}" data-doc-status="${esc(d.status || "")}" data-doc-name="${esc(d.file_name || "")}">
             <td class="px-4 py-3">
             <input type="checkbox" name="doc_ids" value="${d.id}"
                 class="docCheckbox h-4 w-4 rounded border-slate-300 dark:border-slate-700"
@@ -64,13 +64,13 @@ if (qInput && typeSelect && fromInput && toInput && tbody) {
                 ${esc(d.file_name || "")}
             </a>
             <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                ${esc(String(d.char_count ?? 0))} chars
+                <span data-doc-chars-for="${d.id}">${esc(String(d.char_count ?? 0))}</span> chars
             </div>
             ${snippet}
             </td>
 
             <td class="px-4 py-3">${chip}</td>
-            <td class="px-4 py-3">${esc(String(d.word_count ?? 0))}</td>
+            <td class="px-4 py-3"><span data-doc-words-for="${d.id}">${esc(String(d.word_count ?? 0))}</span></td>
             <td class="px-4 py-3 text-slate-600 dark:text-slate-300">${esc(d.uploaded_at || "")}</td>
 
             <td class="px-4 py-3">
@@ -194,6 +194,10 @@ if (qInput && typeSelect && fromInput && toInput && tbody) {
 
             if (typeof window.__refreshCombineState === "function") {
                 window.__refreshCombineState();
+            }
+
+            if (typeof window.__restartStatusPoll === "function") {
+                window.__restartStatusPoll();
             }
 
             if (docsCount) docsCount.textContent = `${data.count ?? 0} documents`;

@@ -18,6 +18,7 @@ urlpatterns = [
 
     path("api/search/", views.search_documents_api, name="search_api"),
     path("api/combined/search/", views.search_combined_api, name="combined_search_api"),
+    path("api/status/", views.documents_status_api, name="status_api"),
 
     path("export/csv/", views.export_documents_csv, name="export_csv"),
 
